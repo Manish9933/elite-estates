@@ -1,0 +1,30 @@
+export const AUTH_MESSAGES = {
+  LOGIN_TITLE: 'WELCOME BACK',
+  SIGNUP_TITLE: 'CREATE ACCOUNT',
+  FORGOT_PASSWORD_TITLE: 'RESET PASSWORD',
+  LOGIN_SUBTITLE: 'Log in to manage your luxury properties.',
+  SIGNUP_SUBTITLE: 'Join the elite community of property managers.',
+  FORGOT_PASSWORD_SUBTITLE: 'Enter your email to receive a reset link.',
+  EMAIL_PLACEHOLDER: 'YOUR EMAIL',
+  PASSWORD_PLACEHOLDER: 'YOUR PASSWORD',
+  CONFIRM_PASSWORD_PLACEHOLDER: 'CONFIRM PASSWORD',
+  FULL_NAME_PLACEHOLDER: 'YOUR FULL NAME',
+  LOGIN_BUTTON: 'LOGIN',
+  SIGNUP_BUTTON: 'REGISTER',
+  RESET_BUTTON: 'SEND RESET LINK',
+  FORGOT_PASSWORD_LINK: 'Forgot your password?',
+  NO_ACCOUNT: "Don't have an account?",
+  ALREADY_HAVE_ACCOUNT: 'Already have an account?',
+  SIGNUP_LINK: 'Sign Up',
+  LOGIN_LINK: 'Log In',
+  OR_SOCIAL: 'OR SIGN IN WITH',
+};
+
+export const AUTH_VALIDATION = {
+  EMAIL_REQUIRED: 'Email is required',
+  EMAIL_INVALID: 'Please enter a valid email',
+  PASSWORD_REQUIRED: 'Password is required',
+  PASSWORD_MIN_LENGTH: 'Password must be at least 6 characters',
+  PASSWORDS_MUST_MATCH: 'Passwords must match',
+  NAME_REQUIRED: 'Full name is required',
+};

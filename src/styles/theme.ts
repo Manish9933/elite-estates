@@ -12,6 +12,8 @@ export const Theme = {
     success: '#10B981',
     glass: 'rgba(255, 255, 255, 0.05)',
     glassBorder: 'rgba(255, 255, 255, 0.1)',
+    gold: '#D4AF37',
+    goldGradient: ['#F9F295', '#E0AA3E', '#B88A44', '#D4AF37'] as const,
   },
   spacing: {
     xs: 4,

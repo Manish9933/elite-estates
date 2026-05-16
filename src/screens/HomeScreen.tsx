@@ -1,96 +1,256 @@
-import React from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   StyleSheet, 
   View, 
   Text, 
   ScrollView, 
   TouchableOpacity, 
-  TextInput, 
   Dimensions, 
-  ImageBackground 
+  ImageBackground,
+  Image,
+  Platform,
+  TextInput,
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, MapPin, Filter, Star, Heart, ArrowRight } from 'lucide-react-native';
+import * as LucideIcons from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { Theme } from '../styles/theme';
-import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
+import Animated, { 
+  FadeInDown, 
+  FadeInRight, 
+  FadeInUp, 
+  ZoomIn, 
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  withSequence
+} from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../context/AuthContext';
+import { propertyApi } from '../api/properties';
+import { profileApi } from '../api/profiles';
+import { supabase as supabaseClient } from '../lib/supabase';
+import { CATEGORIES } from '../utils/mockData';
 
 const { width } = Dimensions.get('window');
-
-const CATEGORIES = [
-  { id: '1', name: 'Apartments', icon: '🏢' },
-  { id: '2', name: 'Villas', icon: '🏡' },
-  { id: '3', name: 'Penthouses', icon: '🏙️' },
-  { id: '4', name: 'Houses', icon: '🏠' },
-];
-
-const FEATURED_PROPERTIES = [
-  {
-    id: '1',
-    title: 'Skyline Penthouse',
-    price: '$2,500,000',
-    location: 'Manhattan, NY',
-    rating: 4.9,
-    image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
-    type: 'Penthouse'
-  },
-  {
-    id: '2',
-    title: 'Emerald Valley Villa',
-    price: '$1,800,000',
-    location: 'Beverly Hills, CA',
-    rating: 4.8,
-    image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=800&q=80',
-    type: 'Villa'
-  }
-];
+const isWeb = Platform.OS === 'web';
+const GOLD = '#D4AF37';
+const GOLD_GRADIENT = ['#F9F295', '#E0AA3E', '#B88A44', '#D4AF37'] as const;
 
 export default function HomeScreen({ navigation }: any) {
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Find your dream</Text>
-            <Text style={styles.title}>Elite Estate</Text>
-          </View>
-          <TouchableOpacity style={styles.profileButton}>
-            <ImageBackground 
-              source={{ uri: 'https://i.pravatar.cc/150?u=elite' }} 
-              style={styles.profileImage}
-              imageStyle={{ borderRadius: Theme.borderRadius.full }}
-            />
-          </TouchableOpacity>
-        </View>
+  const { user } = useAuth();
+  const [search, setSearch] = useState('');
+  const [featuredProperties, setFeaturedProperties] = useState<any[]>([]);
+  const [nearbyProperties, setNearbyProperties] = useState<any[]>([]);
+  const [profile, setProfile] = useState<any>(null);
+  const [userFavorites, setUserFavorites] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [globalStats, setGlobalStats] = useState({ locations: '0', agents: '0', rating: '4.9' });
 
-        {/* Search Bar */}
-        <Animated.View entering={FadeInDown.delay(200)} style={styles.searchContainer}>
-          <TouchableOpacity 
-            style={styles.searchInputWrapper}
-            onPress={() => navigation.navigate('Explore')}
-          >
-            <Search color={Theme.colors.textMuted} size={20} style={styles.searchIcon} />
-            <Text style={{ color: Theme.colors.textMuted, fontSize: 16 }}>Search by location, type...</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.filterButton}>
-            <Filter color={Theme.colors.text} size={20} />
-          </TouchableOpacity>
+  const fetchHomeData = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const [featured, nearby, profileRes, favoritesRes, counts] = await Promise.all([
+        propertyApi.getProperties({ isFeatured: true }),
+        propertyApi.getProperties(),
+        profileApi.getProfile(user.id),
+        propertyApi.getFavorites(user.id),
+        Promise.all([
+          supabaseClient.from('properties').select('*', { count: 'exact', head: true }),
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'agent')
+        ])
+      ]);
+
+      if (featured.data) setFeaturedProperties(featured.data);
+      if (nearby.data) setNearbyProperties(nearby.data.slice(0, 6));
+      if (profileRes.data) setProfile(profileRes.data);
+      
+      if (favoritesRes.data) {
+        const favIds = new Set(favoritesRes.data.map((f: any) => f.property.id));
+        setUserFavorites(favIds);
+      }
+      
+      const [propCount, agentCount] = counts;
+      setGlobalStats({
+        locations: propCount.count ? `${(propCount.count * 12).toLocaleString()}+` : '2.5k+',
+        agents: agentCount.count ? agentCount.count.toString() : '150+',
+        rating: '4.9'
+      });
+    } catch (error) {
+      console.error('Error fetching home data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  const heroScale = useSharedValue(1);
+
+  useEffect(() => {
+    fetchHomeData();
+    heroScale.value = withRepeat(
+      withSequence(
+        withTiming(1.05, { duration: 6000 }),
+        withTiming(1, { duration: 6000 })
+      ),
+      -1,
+      true
+    );
+  }, [fetchHomeData]);
+
+  const animatedHeroStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: heroScale.value }]
+  }));
+
+  const handleToggleFavorite = async (propertyId: string) => {
+    if (!user) return;
+    const isFav = userFavorites.has(propertyId);
+    
+    // Optimistic Update
+    const newFavs = new Set(userFavorites);
+    if (isFav) newFavs.delete(propertyId);
+    else newFavs.add(propertyId);
+    setUserFavorites(newFavs);
+
+    try {
+      await propertyApi.toggleFavorite(user.id, propertyId, isFav);
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      // Rollback if failed
+      setUserFavorites(userFavorites);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchHomeData();
+  };
+
+  const numColumns = width > 1200 ? 3 : width > 800 ? 2 : 1;
+  const cardWidth = width > 800 ? (width - (isWeb ? 120 : 40) - (numColumns - 1) * 30) / numColumns : width - 40;
+  const horizontalCardWidth = width > 800 ? cardWidth : width * 0.88;
+
+  const getTimeGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Morning Elegance';
+    if (hour < 17) return 'Afternoon Prestige';
+    return 'Evening Serenity';
+  };
+
+  const userName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Member';
+  const userImage = profile?.avatar_url || user?.user_metadata?.avatar_url || 'https://i.pravatar.cc/150?u=elite';
+
+  if (loading && !refreshing) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={GOLD} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={GOLD} />
+        }
+      >
+        
+        {/* Cinematic Hero */}
+          <Animated.View style={[styles.heroBackground, animatedHeroStyle]}>
+            <ImageBackground 
+              source={{ uri: 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1600&q=80' }}
+              style={styles.heroBackground}
+              imageStyle={{ borderRadius: isWeb ? 30 : 0 }}
+            >
+              <LinearGradient
+                colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.95)']}
+                style={styles.heroGradient}
+              >
+                <Animated.View entering={FadeInUp.duration(1000)} style={styles.heroContent}>
+                  <View style={styles.headerTop}>
+                  <View>
+                    <Text style={styles.greeting}>{getTimeGreeting()},</Text>
+                    <Text style={styles.userName}>{userName}</Text>
+                  </View>
+                    <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate('Profile')}>
+                      <Image source={{ uri: userImage }} style={styles.profileImg} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.heroBottom}>
+                    <Animated.Text entering={FadeInDown.delay(200).duration(800)} style={styles.heroTitle}>
+                      Discover Your{'\n'}<Text style={{ color: GOLD }}>Eternal</Text> Domain
+                    </Animated.Text>
+                    
+                    <Animated.View entering={FadeInDown.delay(400).duration(800)} style={styles.searchBar}>
+                      <LucideIcons.Search color="rgba(255,255,255,0.4)" size={20} />
+                      <TextInput 
+                        placeholder="Search locations, styles..."
+                        placeholderTextColor="rgba(255,255,255,0.3)"
+                        style={styles.searchInput}
+                        value={search}
+                        onChangeText={setSearch}
+                      />
+                      <TouchableOpacity style={styles.filterBtn} onPress={() => navigation.navigate('Explore')}>
+                        <LucideIcons.Filter color="black" size={18} />
+                      </TouchableOpacity>
+                    </Animated.View>
+                  </View>
+                </Animated.View>
+              </LinearGradient>
+            </ImageBackground>
+          </Animated.View>
+
+        {/* Floating Quick Stats */}
+        <Animated.View entering={FadeInUp.delay(500)} style={styles.statsBar}>
+          <BlurView intensity={40} style={styles.statsContent}>
+            <View style={styles.statItem}>
+              <LucideIcons.Globe size={18} color={GOLD} />
+              <Text style={styles.statVal}>{globalStats.locations}</Text>
+              <Text style={styles.statLab}>Portfolio</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <LucideIcons.ShieldCheck size={18} color={GOLD} />
+              <Text style={styles.statVal}>{globalStats.agents}</Text>
+              <Text style={styles.statLab}>Elite Agents</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <LucideIcons.Star size={18} color={GOLD} />
+              <Text style={styles.statVal}>{globalStats.rating}</Text>
+              <Text style={styles.statLab}>Global CSAT</Text>
+            </View>
+          </BlurView>
         </Animated.View>
 
-        {/* Categories */}
+        {/* Collections Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Categories</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAll}>See All</Text>
+            <Text style={styles.sectionTitle}>Exclusive Collections</Text>
+            <TouchableOpacity style={styles.seeAllBtn} onPress={() => navigation.navigate('Explore')}>
+              <Text style={styles.seeAllText}>Explore</Text>
+              <LucideIcons.ArrowRight size={14} color={GOLD} />
             </TouchableOpacity>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesList}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
             {CATEGORIES.map((cat, index) => (
               <Animated.View key={cat.id} entering={FadeInRight.delay(index * 100)}>
-                <TouchableOpacity style={styles.categoryItem}>
-                  <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                <TouchableOpacity 
+                  style={styles.categoryCard}
+                  onPress={() => navigation.navigate('Explore', { type: cat.name })}
+                >
+                  <View style={styles.categoryIconWrapper}>
+                    <Text style={styles.categoryEmoji}>{cat.icon}</Text>
+                  </View>
                   <Text style={styles.categoryName}>{cat.name}</Text>
                 </TouchableOpacity>
               </Animated.View>
@@ -98,291 +258,582 @@ export default function HomeScreen({ navigation }: any) {
           </ScrollView>
         </View>
 
-        {/* Featured */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Featured Properties</Text>
-            <TouchableOpacity>
-              <ArrowRight color={Theme.colors.primary} size={20} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredList}>
-            {FEATURED_PROPERTIES.map((prop, index) => (
-              <Animated.View key={prop.id} entering={FadeInRight.delay(index * 200)}>
-                <TouchableOpacity 
-                  style={styles.propertyCard}
-                  onPress={() => navigation.navigate('PropertyDetails', { property: prop })}
+        {/* Handpicked Section */}
+        {featuredProperties.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Curated Portfolio</Text>
+              <LinearGradient colors={GOLD_GRADIENT} start={[0,0]} end={[1,0]} style={styles.badge}>
+                <LucideIcons.Award size={12} color="black" fill="black" />
+                <Text style={styles.badgeText}>ELITE SELECTION</Text>
+              </LinearGradient>
+            </View>
+            
+            <ScrollView 
+              horizontal={!isWeb || width < 800} 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={[
+                styles.featuredList,
+                isWeb && width >= 800 && styles.featuredGrid
+              ]}
+            >
+              {featuredProperties.map((prop, index) => (
+                <Animated.View 
+                  key={prop.id} 
+                  entering={FadeInDown.delay(index * 150).springify()}
+                  layout={LinearTransition}
+                  style={[styles.propCardWrapper, { width: horizontalCardWidth }]}
                 >
-                  <ImageBackground source={{ uri: prop.image }} style={styles.propertyImage} imageStyle={{ borderRadius: Theme.borderRadius.lg }}>
-                    <BlurView intensity={20} style={styles.typeTag}>
-                      <Text style={styles.typeText}>{prop.type}</Text>
-                    </BlurView>
-                    <TouchableOpacity style={styles.favoriteButton}>
-                      <Heart color="white" size={18} />
-                    </TouchableOpacity>
-                  </ImageBackground>
-                  <View style={styles.propertyInfo}>
-                    <View style={styles.propertyTitleRow}>
-                      <Text style={styles.propertyName}>{prop.title}</Text>
-                      <View style={styles.ratingRow}>
-                        <Star color="#F59E0B" fill="#F59E0B" size={14} />
-                        <Text style={styles.ratingText}>{prop.rating}</Text>
+                  <TouchableOpacity 
+                    activeOpacity={0.9}
+                    style={styles.propCard}
+                    onPress={() => navigation.navigate('PropertyDetails', { property: prop })}
+                  >
+                    <ImageBackground source={{ uri: prop.images?.[0] || 'https://via.placeholder.com/400' }} style={styles.propImage} imageStyle={{ borderRadius: 28 }}>
+                      <LinearGradient 
+                        colors={['rgba(0,0,0,0.4)', 'transparent', 'rgba(0,0,0,0.6)']} 
+                        style={[StyleSheet.absoluteFill, { borderRadius: 28 }]} 
+                      />
+                      <View style={styles.propCardHeader}>
+                        <BlurView intensity={40} style={styles.propType}>
+                          <Text style={styles.propTypeText}>{prop.property_type}</Text>
+                        </BlurView>
+                        <TouchableOpacity 
+                          style={styles.favBtn}
+                          onPress={() => handleToggleFavorite(prop.id)}
+                        >
+                          <LucideIcons.Heart 
+                            color={userFavorites.has(prop.id) ? Theme.colors.gold : "white"} 
+                            size={18} 
+                            fill={userFavorites.has(prop.id) ? Theme.colors.gold : "transparent"} 
+                          />
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.propImageOverlay}>
+                        <View style={styles.verifiedBadge}>
+                          <LucideIcons.ShieldCheck size={10} color={Theme.colors.gold} />
+                          <Text style={styles.verifiedText}>VERIFIED ASSET</Text>
+                        </View>
+                      </View>
+                    </ImageBackground>
+                    
+                    <View style={styles.propInfo}>
+                      <View style={styles.propTitleRow}>
+                        <Text style={styles.propName} numberOfLines={1}>{prop.title}</Text>
+                        <View style={styles.propRating}>
+                          <LucideIcons.Star size={10} color={GOLD} fill={GOLD} />
+                          <Text style={styles.propRatingText}>4.9</Text>
+                        </View>
+                      </View>
+                      <View style={styles.propLocation}>
+                        <LucideIcons.MapPin size={12} color="rgba(255,255,255,0.3)" />
+                        <Text style={styles.propLocationText} numberOfLines={1}>{prop.address}, {prop.city}</Text>
+                      </View>
+                      <View style={styles.propPriceRow}>
+                        <View>
+                          <Text style={styles.priceLabel}>ASKING PRICE</Text>
+                          <Text style={styles.propPrice}>${Number(prop.price).toLocaleString()}</Text>
+                        </View>
+                        <TouchableOpacity style={styles.viewBtn}>
+                          <LucideIcons.ArrowRight size={20} color="black" />
+                        </TouchableOpacity>
                       </View>
                     </View>
-                    <View style={styles.locationRow}>
-                      <MapPin color={Theme.colors.textMuted} size={14} />
-                      <Text style={styles.locationText}>{prop.location}</Text>
-                    </View>
-                    <Text style={styles.priceText}>{prop.price}</Text>
-                  </View>
-                </TouchableOpacity>
-              </Animated.View>
-            ))}
-          </ScrollView>
-        </View>
+                  </TouchableOpacity>
+                </Animated.View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
-        {/* Promotional Banner */}
-        <Animated.View entering={FadeInDown.delay(600)} style={styles.banner}>
-          <LinearGradient 
-            colors={[Theme.colors.primary, '#4F46E5']} 
-            start={{x: 0, y: 0}} 
-            end={{x: 1, y: 1}} 
-            style={styles.bannerGradient}
+        {/* Map Experience */}
+        <Animated.View entering={ZoomIn.delay(800)} style={styles.mapBanner}>
+          <ImageBackground
+            source={{ uri: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1200&q=80' }}
+            style={styles.mapBannerBg}
+            imageStyle={{ borderRadius: 28 }}
           >
-            <View>
-              <Text style={styles.bannerTitle}>List your property</Text>
-              <Text style={styles.bannerSub}>Earn more with Elite Estates</Text>
-            </View>
-            <TouchableOpacity style={styles.bannerButton}>
-              <Text style={styles.bannerButtonText}>Join as Agent</Text>
-            </TouchableOpacity>
-          </LinearGradient>
+            <BlurView intensity={25} style={styles.mapBannerContent}>
+              <View style={styles.mapIconCircle}>
+                <LucideIcons.Map size={24} color="black" />
+              </View>
+              <View style={styles.mapTextContainer}>
+                <Text style={styles.mapBannerTitle}>Territory Matrix</Text>
+                <Text style={styles.mapBannerSub}>Immersive 3D location discovery</Text>
+              </View>
+              <TouchableOpacity style={styles.mapGoBtn} onPress={() => navigation.navigate('Explore')}>
+                <Text style={styles.mapGoText}>Enter</Text>
+              </TouchableOpacity>
+            </BlurView>
+          </ImageBackground>
         </Animated.View>
+
+        {/* Masterpieces Section */}
+        {nearbyProperties.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Nearby Masterpieces</Text>
+            </View>
+            
+            <View style={[
+              styles.featuredList,
+              styles.featuredGrid
+            ]}>
+              {nearbyProperties.map((prop, index) => (
+                <Animated.View 
+                  key={prop.id} 
+                  entering={FadeInDown.delay(index * 150).springify()}
+                  layout={LinearTransition}
+                  style={[styles.propCardWrapper, { width: cardWidth }]}
+                >
+                  <TouchableOpacity 
+                    style={styles.propCard}
+                    activeOpacity={0.9}
+                    onPress={() => navigation.navigate('PropertyDetails', { property: prop })}
+                  >
+                    <ImageBackground source={{ uri: prop.images?.[0] || 'https://via.placeholder.com/400' }} style={styles.propImage} imageStyle={{ borderRadius: 28 }}>
+                      <LinearGradient 
+                        colors={['rgba(0,0,0,0.3)', 'transparent']} 
+                        style={[StyleSheet.absoluteFill, { borderRadius: 28 }]} 
+                      />
+                      <View style={styles.propCardHeader}>
+                        <BlurView intensity={20} style={styles.propType}>
+                          <Text style={styles.propTypeText}>{prop.property_type}</Text>
+                        </BlurView>
+                      </View>
+                    </ImageBackground>
+                    
+                    <View style={styles.propInfo}>
+                      <Text style={styles.propName} numberOfLines={1}>{prop.title}</Text>
+                      <View style={styles.propLocation}>
+                        <LucideIcons.MapPin size={10} color="rgba(255,255,255,0.3)" />
+                        <Text style={styles.propLocationText} numberOfLines={1}>{prop.address}</Text>
+                      </View>
+                      <View style={styles.propPriceRow}>
+                        <Text style={styles.propPrice}>${Number(prop.price).toLocaleString()}</Text>
+                        <View style={styles.propRating}>
+                           <LucideIcons.Star size={8} color={GOLD} fill={GOLD} />
+                           <Text style={[styles.propRatingText, {fontSize: 10}]}>4.8</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </Animated.View>
+              ))}
+            </View>
+          </View>
+        )}
+
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
-
-// Minimal LinearGradient fallback if expo-linear-gradient is not loaded correctly in this environment
-const LinearGradient = ({ children, colors, style }: any) => (
-  <View style={[style, { backgroundColor: colors[0] }]}>{children}</View>
-);
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: '#050505',
   },
-  header: {
+  scrollContent: {
+    paddingBottom: 100,
+    maxWidth: isWeb ? 1400 : '100%',
+    alignSelf: 'center',
+    width: '100%',
+  },
+  heroSection: {
+    paddingHorizontal: isWeb ? 40 : 0,
+    paddingTop: isWeb ? 20 : 0,
+    height: isWeb ? 600 : 540,
+  },
+  heroBackground: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  heroGradient: {
+    flex: 1,
+    padding: 25,
+    paddingTop: Platform.OS === 'android' ? 55 : 25,
+    justifyContent: 'space-between',
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Theme.spacing.lg,
-    paddingTop: Theme.spacing.md,
   },
   greeting: {
-    color: Theme.colors.textMuted,
-    fontSize: 16,
-    fontFamily: Theme.fonts.regular,
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-  title: {
-    color: Theme.colors.text,
-    fontSize: 28,
-    fontFamily: Theme.fonts.bold,
+  userName: {
+    color: 'white',
+    fontSize: 24,
     fontWeight: 'bold',
+    marginTop: 2,
   },
-  profileButton: {
+  profileBtn: {
     width: 48,
     height: 48,
-    borderRadius: Theme.borderRadius.full,
-    borderWidth: 2,
-    borderColor: Theme.colors.primary,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: GOLD,
+    padding: 2,
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
   },
-  profileImage: {
+  profileImg: {
     width: '100%',
     height: '100%',
+    borderRadius: 22,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: Theme.spacing.lg,
-    marginTop: Theme.spacing.xl,
-    gap: Theme.spacing.sm,
-  },
-  searchInputWrapper: {
+  heroContent: {
     flex: 1,
+    justifyContent: 'space-between',
+  },
+  heroBottom: {
+    marginBottom: 30,
+  },
+  heroTitle: {
+    color: 'white',
+    fontSize: isWeb ? 58 : 42,
+    fontWeight: 'bold',
+    lineHeight: isWeb ? 66 : 50,
+    marginBottom: 35,
+    letterSpacing: -0.5,
+  },
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.borderRadius.md,
-    paddingHorizontal: Theme.spacing.md,
-    height: 54,
-  },
-  searchIcon: {
-    marginRight: Theme.spacing.sm,
-  },
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    height: 72,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    ...Platform.select({
+      web: { backdropFilter: 'blur(30px)' }
+    }),
+  } as any,
   searchInput: {
     flex: 1,
-    color: Theme.colors.text,
+    marginLeft: 15,
+    color: 'white',
     fontSize: 16,
+    fontWeight: '500',
   },
-  filterButton: {
-    width: 54,
-    height: 54,
-    backgroundColor: Theme.colors.primary,
-    borderRadius: Theme.borderRadius.md,
+  filterBtn: {
+    backgroundColor: GOLD,
+    width: 48,
+    height: 48,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: GOLD,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  statsBar: {
+    marginTop: -30,
+    marginHorizontal: 25,
+    zIndex: 10,
+  },
+  statsContent: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(20,20,20,0.85)',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.2)',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  statItem: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  statVal: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  statLab: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   section: {
-    marginTop: Theme.spacing.xl,
+    marginTop: 45,
+    paddingHorizontal: isWeb ? 40 : 20,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Theme.spacing.lg,
-    marginBottom: Theme.spacing.md,
+    marginBottom: 22,
   },
   sectionTitle: {
-    color: Theme.colors.text,
-    fontSize: 20,
-    fontWeight: '700',
+    color: 'white',
+    fontSize: 22,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
   },
-  seeAll: {
-    color: Theme.colors.primary,
-    fontSize: 14,
-  },
-  categoriesList: {
-    paddingLeft: Theme.spacing.lg,
-    gap: Theme.spacing.md,
-  },
-  categoryItem: {
-    backgroundColor: Theme.colors.surface,
-    paddingVertical: Theme.spacing.md,
-    paddingHorizontal: Theme.spacing.lg,
-    borderRadius: Theme.borderRadius.xl,
+  seeAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Theme.spacing.sm,
-    borderWidth: 1,
-    borderColor: Theme.colors.glassBorder,
+    gap: 6,
   },
-  categoryIcon: {
-    fontSize: 18,
+  seeAllText: {
+    color: GOLD,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  categoryList: {
+    paddingRight: 40,
+    gap: 18,
+  },
+  categoryCard: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  categoryIconWrapper: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#121212',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  categoryEmoji: {
+    fontSize: 24,
   },
   categoryName: {
-    color: Theme.colors.text,
-    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
     fontWeight: '600',
   },
-  featuredList: {
-    paddingLeft: Theme.spacing.lg,
-    gap: Theme.spacing.lg,
-    paddingBottom: Theme.spacing.md,
-  },
-  propertyCard: {
-    width: width * 0.7,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.borderRadius.lg,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Theme.colors.glassBorder,
-  },
-  propertyImage: {
-    width: '100%',
-    height: 200,
-    padding: Theme.spacing.md,
-    justifyContent: 'space-between',
+  badge: {
     flexDirection: 'row',
-  },
-  typeTag: {
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
-    overflow: 'hidden',
-    alignSelf: 'flex-start',
+    borderRadius: 10,
+    gap: 5,
   },
-  typeText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
+  badgeText: {
+    color: 'black',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
-  favoriteButton: {
-    width: 32,
-    height: 32,
+  featuredList: {
+    gap: 28,
+  },
+  featuredGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    gap: 25,
+  },
+  propCardWrapper: {
+    marginBottom: isWeb ? 35 : 0,
+  },
+  propCard: {
+    backgroundColor: '#0D0D0D',
+    borderRadius: 38,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  propImage: {
+    width: '100%',
+    height: 260,
+    padding: 18,
+  },
+  propCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  propType: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  propTypeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  favBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  propertyInfo: {
-    padding: Theme.spacing.md,
+  propInfo: {
+    padding: 18,
+    paddingTop: 15,
   },
-  propertyTitleRow: {
+  propTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
   },
-  propertyName: {
-    color: Theme.colors.text,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ratingText: {
-    color: '#F59E0B',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 4,
-  },
-  locationText: {
-    color: Theme.colors.textMuted,
-    fontSize: 14,
-  },
-  priceText: {
-    color: Theme.colors.secondary,
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: Theme.spacing.sm,
-  },
-  banner: {
-    margin: Theme.spacing.lg,
-    borderRadius: Theme.borderRadius.lg,
-    overflow: 'hidden',
-  },
-  bannerGradient: {
-    padding: Theme.spacing.xl,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  bannerTitle: {
+  propName: {
     color: 'white',
     fontSize: 20,
     fontWeight: 'bold',
+    flex: 1,
+    marginRight: 10,
   },
-  bannerSub: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-    marginTop: 4,
+  propRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  bannerButton: {
-    backgroundColor: 'white',
-    paddingHorizontal: Theme.spacing.md,
-    paddingVertical: Theme.spacing.sm,
-    borderRadius: Theme.borderRadius.md,
-  },
-  bannerButtonText: {
-    color: Theme.colors.primary,
+  propRatingText: {
+    color: '#F59E0B',
+    fontSize: 12,
     fontWeight: 'bold',
+  },
+  propLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 20,
+  },
+  propLocationText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 14,
+  },
+  propPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    paddingTop: 18,
+  },
+  propPrice: {
+    color: GOLD,
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  viewBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#1A1A1A',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  propImageOverlay: {
+    position: 'absolute',
+    bottom: 15,
+    left: 15,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+  },
+  verifiedText: {
+    color: GOLD,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  priceLabel: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  mapBanner: {
+    marginTop: 55,
+    marginHorizontal: isWeb ? 40 : 25,
+    marginBottom: 25,
+    height: 190,
+  },
+  mapBannerBg: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  mapBannerContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 28,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  mapIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: GOLD,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: GOLD,
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+  },
+  mapTextContainer: {
+    flex: 1,
+    marginLeft: 22,
+  },
+  mapBannerTitle: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  mapBannerSub: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    marginTop: 5,
+  },
+  mapGoBtn: {
+    backgroundColor: 'white',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+  mapGoText: {
+    color: 'black',
+    fontWeight: '900',
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   }
 });
