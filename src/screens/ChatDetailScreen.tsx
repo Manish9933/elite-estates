@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -8,67 +8,110 @@ import {
   TextInput, 
   KeyboardAvoidingView, 
   Platform,
-  Image
+  Image,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Send, Phone, Video, MoreHorizontal } from 'lucide-react-native';
 import { Theme } from '../styles/theme';
-import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import { messageApi } from '../api/messages';
+
+const GOLD = '#D4AF37';
 
 export default function ChatDetailScreen({ route, navigation }: any) {
-  const { chat } = route.params;
+  const { otherUser, property } = route.params;
+  const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const flatListRef = useRef<FlatList>(null);
 
-  // Initial mock data
-  useEffect(() => {
-    setMessages([
-      { id: '1', text: 'Hello! I saw your listing for the Skyline Penthouse.', senderId: 'me', time: '10:00 AM' },
-      { id: '2', text: 'Hello! Yes, it is still available. Would you like to schedule a viewing?', senderId: 'other', time: '10:05 AM' },
-    ]);
-  }, []);
+  const fetchMessages = useCallback(async () => {
+    if (!user || !otherUser) return;
+    try {
+      const { data, error } = await messageApi.getMessages(user.id, otherUser.id, property?.id);
+      if (data) {
+        setMessages(data);
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, otherUser, property]);
 
-  // Supabase Realtime Subscription Placeholder
   useEffect(() => {
-    // In a real app, you would subscribe here
-    // const channel = supabase.channel('chat-room')
-    //   .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-    //     setMessages(prev => [...prev, payload.new]);
-    //   })
-    //   .subscribe();
-    // return () => { supabase.removeChannel(channel) };
-  }, []);
-
-  const sendMessage = () => {
-    if (message.trim().length === 0) return;
+    fetchMessages();
     
-    const newMessage = {
-      id: Date.now().toString(),
-      text: message,
-      senderId: 'me',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (!user?.id) return;
+
+    // Subscribe to new messages
+    const subscription = messageApi.subscribeToMessages(user.id, (payload) => {
+      // If message is from this sender, add to list (only if not already there)
+      if (payload.new.sender_id === otherUser.id) {
+        setMessages(prev => {
+          const exists = prev.some(m => m.id === payload.new.id);
+          if (exists) return prev;
+          return [...prev, payload.new];
+        });
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
     };
+  }, [fetchMessages, user, otherUser]);
+
+  const sendMessage = async () => {
+    if (message.trim().length === 0 || !user || !otherUser) return;
     
-    setMessages([...messages, newMessage]);
+    const content = message.trim();
     setMessage('');
-    
-    // Simulate scroll to bottom
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+
+    try {
+      const { data, error } = await messageApi.sendMessage({
+        sender_id: user.id,
+        receiver_id: otherUser.id,
+        content: content,
+        property_id: property?.id
+      });
+
+      if (error) throw error;
+
+      // Optimistically update or refetch
+      // The sendMessage response data doesn't contain the full object sometimes depending on Supabase version
+      // Let's just refetch or manually add
+      const newMessage = {
+        id: Date.now().toString(),
+        content,
+        sender_id: user.id,
+        created_at: new Date().toISOString()
+      };
+      
+      setMessages(prev => [...prev, newMessage]);
+      
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
   };
 
   const renderMessage = ({ item }: any) => {
-    const isMe = item.senderId === 'me';
+    const isMe = item.sender_id === user?.id;
     return (
       <View style={[styles.messageContainer, isMe ? styles.myMessage : styles.otherMessage]}>
         <View style={[styles.bubble, isMe ? styles.myBubble : styles.otherBubble]}>
           <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.otherMessageText]}>
-            {item.text}
+            {item.content}
           </Text>
         </View>
-        <Text style={styles.messageTime}>{item.time}</Text>
+        <Text style={styles.messageTime}>
+          {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </Text>
       </View>
     );
   };
@@ -82,10 +125,13 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         </TouchableOpacity>
         
         <View style={styles.headerInfo}>
-          <Image source={{ uri: chat.avatar }} style={styles.smallAvatar} />
+          <Image 
+            source={{ uri: otherUser.avatar_url || `https://i.pravatar.cc/150?u=${otherUser.id}` }} 
+            style={styles.smallAvatar} 
+          />
           <View>
-            <Text style={styles.headerName}>{chat.name}</Text>
-            <Text style={styles.headerStatus}>{chat.online ? 'Online' : 'Offline'}</Text>
+            <Text style={styles.headerName}>{otherUser.full_name}</Text>
+            <Text style={styles.headerStatus}>Online</Text>
           </View>
         </View>
 
@@ -95,14 +141,21 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         </View>
       </View>
 
-      <FlatList 
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.messageList}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={GOLD} />
+        </View>
+      ) : (
+        <FlatList 
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.messageList}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+        />
+      )}
 
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

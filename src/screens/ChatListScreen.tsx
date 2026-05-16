@@ -1,42 +1,92 @@
-import React from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   StyleSheet, 
   View, 
   Text, 
   FlatList, 
   TouchableOpacity, 
-  Image 
+  Image,
+  ActivityIndicator,
+  RefreshControl,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, MoreVertical } from 'lucide-react-native';
+import { Search, MoreVertical, MessageSquare } from 'lucide-react-native';
 import { Theme } from '../styles/theme';
+import { useAuth } from '../context/AuthContext';
+import { messageApi } from '../api/messages';
 
-const CHATS = [
-  {
-    id: '1',
-    name: 'Marcus Sterling',
-    lastMessage: 'The penthouse is available for viewing tomorrow.',
-    time: '10:30 AM',
-    avatar: 'https://i.pravatar.cc/150?u=agent',
-    unread: 2,
-    online: true
-  },
-  {
-    id: '2',
-    name: 'Sarah Jenkins',
-    lastMessage: 'Thank you for the information!',
-    time: 'Yesterday',
-    avatar: 'https://i.pravatar.cc/150?u=sarah',
-    unread: 0,
-    online: false
-  }
-];
+const GOLD = '#D4AF37';
 
 export default function ChatListScreen({ navigation }: any) {
+  const { user } = useAuth();
+  const [chats, setChats] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchChats = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const { data, error } = await messageApi.getChatList(user.id);
+      if (data) {
+        const conversationsMap = new Map();
+        data.forEach((msg: any) => {
+          const otherUser = msg.sender_id === user.id ? msg.receiver : msg.sender;
+          
+          // Safety check: if the other user profile doesn't exist, skip or use fallback
+          if (!otherUser) return;
+
+          if (!conversationsMap.has(otherUser.id)) {
+            conversationsMap.set(otherUser.id, {
+              id: otherUser.id,
+              name: otherUser.full_name || 'User',
+              avatar: otherUser.avatar_url || `https://i.pravatar.cc/150?u=${otherUser.id}`,
+              lastMessage: msg.content,
+              time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              unread: msg.is_read ? 0 : (msg.receiver_id === user.id ? 1 : 0),
+              online: false,
+              property: msg.property
+            });
+          }
+        });
+        setChats(Array.from(conversationsMap.values()));
+      }
+    } catch (error) {
+      console.error('Error fetching chats:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchChats();
+    
+    if (!user?.id) return;
+
+    // Subscribe to new messages
+    const subscription = messageApi.subscribeToMessages(user.id, (payload) => {
+      fetchChats();
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [fetchChats, user]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchChats();
+  };
+
   const renderChatItem = ({ item }: any) => (
     <TouchableOpacity 
       style={styles.chatItem}
-      onPress={() => navigation.navigate('ChatDetail', { chat: item })}
+      onPress={() => navigation.navigate('ChatDetail', { 
+        chat: item,
+        otherUser: { id: item.id, full_name: item.name, avatar_url: item.avatar }
+      })}
     >
       <View style={styles.avatarContainer}>
         <Image source={{ uri: item.avatar }} style={styles.avatar} />
@@ -62,9 +112,20 @@ export default function ChatListScreen({ navigation }: any) {
             </View>
           )}
         </View>
+        {item.property && (
+          <Text style={styles.propertyTag}>Property: {item.property.title}</Text>
+        )}
       </View>
     </TouchableOpacity>
   );
+
+  if (loading && !refreshing) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={GOLD} />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -83,10 +144,19 @@ export default function ChatListScreen({ navigation }: any) {
       </View>
 
       <FlatList 
-        data={CHATS}
+        data={chats}
         renderItem={renderChatItem}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={GOLD} />
+        }
+        ListEmptyComponent={() => (
+          <View style={styles.emptyContainer}>
+            <MessageSquare size={60} color="rgba(255,255,255,0.1)" />
+            <Text style={styles.emptyText}>No messages yet. Start a conversation from a property page!</Text>
+          </View>
+        )}
       />
     </SafeAreaView>
   );
@@ -95,57 +165,72 @@ export default function ChatListScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.background,
+    backgroundColor: '#050505',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Theme.spacing.lg,
-    paddingVertical: Theme.spacing.md,
+    paddingHorizontal: 25,
+    paddingTop: Platform.OS === 'android' ? 60 : 20,
+    paddingBottom: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
-    color: Theme.colors.text,
+    color: 'white',
+    letterSpacing: -0.5,
   },
   iconButton: {
-    padding: 4,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   searchContainer: {
-    paddingHorizontal: Theme.spacing.lg,
-    marginBottom: Theme.spacing.lg,
+    paddingHorizontal: 25,
+    marginBottom: 25,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Theme.colors.surface,
-    paddingHorizontal: Theme.spacing.md,
-    height: 48,
-    borderRadius: Theme.borderRadius.md,
-    gap: 10,
+    backgroundColor: '#0D0D0D',
+    paddingHorizontal: 18,
+    height: 56,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    gap: 12,
   },
   searchPlaceholder: {
-    color: Theme.colors.textMuted,
+    color: 'rgba(255,255,255,0.4)',
     fontSize: 15,
+    fontWeight: '500',
   },
   listContent: {
-    paddingHorizontal: Theme.spacing.lg,
+    paddingHorizontal: 25,
+    paddingBottom: 160,
   },
   chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Theme.spacing.md,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: Theme.colors.border,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   avatarContainer: {
     position: 'relative',
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   onlineBadge: {
     position: 'absolute',
@@ -154,28 +239,30 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: Theme.colors.secondary,
+    backgroundColor: '#10B981',
     borderWidth: 2,
-    borderColor: Theme.colors.background,
+    borderColor: '#050505',
   },
   chatInfo: {
     flex: 1,
-    marginLeft: 15,
+    marginLeft: 18,
   },
   chatHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   name: {
-    color: Theme.colors.text,
-    fontSize: 17,
+    color: 'white',
+    fontSize: 18,
     fontWeight: 'bold',
+    letterSpacing: -0.2,
   },
   time: {
-    color: Theme.colors.textMuted,
+    color: 'rgba(255,255,255,0.4)',
     fontSize: 12,
+    fontWeight: '500',
   },
   messageRow: {
     flexDirection: 'row',
@@ -183,27 +270,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   lastMessage: {
-    color: Theme.colors.textMuted,
+    color: 'rgba(255,255,255,0.5)',
     fontSize: 14,
     flex: 1,
+    fontWeight: '400',
   },
   unreadMessage: {
-    color: Theme.colors.text,
-    fontWeight: '600',
+    color: GOLD,
+    fontWeight: '700',
   },
   unreadBadge: {
-    backgroundColor: Theme.colors.primary,
+    backgroundColor: GOLD,
     minWidth: 20,
     height: 20,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
-    marginLeft: 10,
+    marginLeft: 12,
   },
   unreadCount: {
-    color: 'white',
+    color: 'black',
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '900',
+  },
+  propertyTag: {
+    fontSize: 11,
+    color: GOLD,
+    marginTop: 6,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  emptyContainer: {
+    flex: 1,
+    height: 500,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 25,
+    lineHeight: 26,
+    fontWeight: '500',
   }
 });
