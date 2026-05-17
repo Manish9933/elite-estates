@@ -23,7 +23,7 @@ export const propertyApi = {
           phone
         )
       `)
-      .eq('status', 'available');
+      .in('status', ['available', 'sold']);
 
     if (filters?.query) {
       query = query.or(`title.ilike.%${filters.query}%,description.ilike.%${filters.query}%,address.ilike.%${filters.query}%`);

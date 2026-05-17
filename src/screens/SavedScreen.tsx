@@ -17,8 +17,10 @@ import { MapPin, Star, Heart, Trash2, Building2 } from 'lucide-react-native';
 import { Theme } from '../styles/theme';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
+import { useIsFocused } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { propertyApi } from '../api/properties';
+import { ShimmerSkeleton } from '../components/Skeleton';
 
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -29,6 +31,7 @@ export default function SavedScreen({ navigation }: any) {
   const [favorites, setFavorites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const isFocused = useIsFocused();
 
   const fetchFavorites = useCallback(async () => {
     if (!user) return;
@@ -37,7 +40,7 @@ export default function SavedScreen({ navigation }: any) {
       const { data, error } = await propertyApi.getFavorites(user.id);
       if (data) {
         // Data is an array of objects with property field
-        setFavorites(data.map((f: any) => f.property));
+        setFavorites(data.map((f: any) => f.property).filter(Boolean));
       }
     } catch (error) {
       console.error('Error fetching favorites:', error);
@@ -48,8 +51,10 @@ export default function SavedScreen({ navigation }: any) {
   }, [user]);
 
   useEffect(() => {
-    fetchFavorites();
-  }, [fetchFavorites]);
+    if (isFocused) {
+      fetchFavorites();
+    }
+  }, [isFocused, fetchFavorites]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -71,9 +76,19 @@ export default function SavedScreen({ navigation }: any) {
 
   if (loading && !refreshing) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={GOLD} />
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <ShimmerSkeleton width={200} height={32} borderRadius={6} />
+          <ShimmerSkeleton width={150} height={16} borderRadius={4} style={{ marginTop: 10 }} />
+        </View>
+        <ScrollView contentContainerStyle={styles.listContainer}>
+          {[1, 2, 3].map(i => (
+            <View key={i} style={{ marginBottom: 25 }}>
+               <ShimmerSkeleton width="100%" height={320} borderRadius={30} />
+            </View>
+          ))}
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
@@ -109,14 +124,19 @@ export default function SavedScreen({ navigation }: any) {
           favorites.map((prop, index) => (
             <Animated.View 
               key={prop.id} 
-              entering={FadeInUp.delay(index * 150)}
+              entering={FadeInUp.delay(Math.min(index * 50, 300))}
               style={[styles.cardWrapper, isWeb && { width: cardWidth, marginHorizontal: 10 }]}
             >
               <TouchableOpacity 
                 style={styles.propertyCard}
                 onPress={() => navigation.navigate('PropertyDetails', { property: prop })}
               >
-                <ImageBackground source={{ uri: prop.images?.[0] || 'https://via.placeholder.com/400' }} style={styles.propertyImage} imageStyle={{ borderRadius: 20 }}>
+                <ImageBackground source={{ uri: prop.images?.[0] || 'https://via.placeholder.com/400' }} style={styles.propertyImage} imageStyle={{ borderRadius: 28 }}>
+                  {prop.status === 'sold' && (
+                    <View style={styles.soldOverlay}>
+                      <Text style={styles.soldOverlayText}>SOLD OUT</Text>
+                    </View>
+                  )}
                   <View style={styles.cardHeader}>
                     <View style={styles.typeTag}>
                       <Text style={styles.typeText}>{prop.property_type}</Text>
@@ -141,7 +161,7 @@ export default function SavedScreen({ navigation }: any) {
                     <View style={styles.infoBottom}>
                       <View style={styles.locationRow}>
                         <MapPin color="rgba(255,255,255,0.7)" size={12} />
-                        <Text style={styles.locationText}>{prop.address}</Text>
+                        <Text style={styles.locationText} numberOfLines={1}>{prop.address}</Text>
                       </View>
                       <Text style={styles.priceText}>${Number(prop.price).toLocaleString()}</Text>
                     </View>
@@ -273,11 +293,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flex: 1,
+    marginRight: 10,
   },
   locationText: {
     color: 'rgba(255,255,255,0.5)',
     fontSize: 14,
     fontWeight: '500',
+    flex: 1,
   },
   priceText: {
     color: GOLD,
@@ -312,5 +335,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  soldOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+  },
+  soldOverlayText: {
+    color: GOLD,
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 2.5,
+    borderWidth: 1,
+    borderColor: GOLD,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
+    overflow: 'hidden',
   },
 });

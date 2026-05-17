@@ -11,9 +11,9 @@ export const messageApi = {
       .from('messages')
       .select(`
         *,
-        sender:sender_id (full_name, avatar_url),
-        receiver:receiver_id (full_name, avatar_url),
-        property:property_id (title)
+        sender:sender_id (id, full_name, avatar_url),
+        receiver:receiver_id (id, full_name, avatar_url),
+        property:property_id (id, title, broker_name, broker_image)
       `)
       .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
       .order('created_at', { ascending: false });
@@ -70,5 +70,31 @@ export const messageApi = {
         filter: `receiver_id=eq.${userId}`
       }, callback)
       .subscribe();
+  },
+
+  /**
+   * Delete a single message
+   */
+  deleteMessage: async (messageId: string) => {
+    return await supabase
+      .from('messages')
+      .delete()
+      .eq('id', messageId);
+  },
+
+  /**
+   * Delete an entire conversation
+   */
+  deleteChat: async (userId: string, otherId: string, propertyId?: string) => {
+    let query = supabase
+      .from('messages')
+      .delete()
+      .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${userId})`);
+    
+    if (propertyId) {
+      query = query.eq('property_id', propertyId);
+    }
+
+    return await query;
   }
 };

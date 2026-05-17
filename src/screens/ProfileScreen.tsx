@@ -153,46 +153,30 @@ export default function ProfileScreen({ navigation }: any) {
   const uploadImage = async (uri: string) => {
     if (!user) return;
     setIsSaving(true);
+    console.log("[Profile] Starting image upload for uri:", uri);
+    
     try {
       const fileName = `${user.id}/${Date.now()}.jpg`;
       
-      // Attempt to read the file as a blob with a timeout
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.onload = () => resolve(xhr.response);
-        xhr.onerror = () => reject(new Error('Failed to read local image file.'));
-        xhr.ontimeout = () => reject(new Error('Reading image file timed out.'));
-        xhr.responseType = 'blob';
-        xhr.open('GET', uri, true);
-        xhr.timeout = 5000;
-        xhr.send(null);
-      });
+      // Attempt to read the file as a blob
+      const response = await fetch(uri);
+      const blob = await response.blob();
       
-      // Use FileReader to convert the local URI to a base64 string, then to an ArrayBuffer
-      // This is the most stable way to upload files in React Native
-      const base64: string = await new Promise((resolve, reject) => {
+      // Convert blob to arrayBuffer for Supabase
+      // Using FileReader for maximum compatibility in React Native
+      const arrayBuffer: ArrayBuffer = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => {
-          const res = reader.result as string;
-          resolve(res.split(',')[1]); // Get the base64 part
-        };
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
         reader.onerror = (e) => reject(e);
-        reader.readAsDataURL(blob);
+        reader.readAsArrayBuffer(blob);
       });
-
-      // Convert base64 to Uint8Array/ArrayBuffer
-      const binaryString = atob(base64);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
       
+      console.log("[Profile] File read successful, uploading to Supabase...");
+
       const { data, error } = await supabase.storage
         .from('avatars')
-        .upload(fileName, bytes.buffer, {
+        .upload(fileName, arrayBuffer, {
           contentType: 'image/jpeg',
-          cacheControl: '3600',
           upsert: true
         });
 
@@ -205,14 +189,16 @@ export default function ProfileScreen({ navigation }: any) {
         .from('avatars')
         .getPublicUrl(fileName);
 
+      console.log("[Profile] Upload successful, public URL:", publicUrl);
       setEditedAvatar(publicUrl);
       
-      // Update profile immediately with new avatar URL
+      // Update profile immediately
       await profileApi.updateProfile(user.id, { avatar_url: publicUrl });
       await fetchData(true);
       
       showLuxuryAlert('Identity Synchronized', 'Your executive photo has been uploaded and secured.');
     } catch (error: any) {
+      console.error("[Profile] Upload Process Error:", error);
       showLuxuryAlert('Storage Error', error.message, 'error');
     } finally {
       setIsSaving(false);
@@ -394,7 +380,7 @@ export default function ProfileScreen({ navigation }: any) {
       {/* Production Modals Suite */}
       
       {/* 1. Identity Manager */}
-      <Modal visible={activeModal === 'identity'} transparent animationType="slide">
+      <Modal visible={activeModal === 'identity'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.editOverlay}>
           <View style={[styles.editContainer, { height: '90%' }]}>
             <View style={styles.editHeader}>
@@ -472,7 +458,7 @@ export default function ProfileScreen({ navigation }: any) {
       </Modal>
 
       {/* 2. Security Command */}
-      <Modal visible={activeModal === 'security'} transparent animationType="slide">
+      <Modal visible={activeModal === 'security'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.editOverlay}>
           <View style={styles.editContainer}>
             <View style={styles.editHeader}>
@@ -498,7 +484,7 @@ export default function ProfileScreen({ navigation }: any) {
       </Modal>
 
       {/* 3. Portfolio: Bookings (Redesigned Itinerary) */}
-      <Modal visible={activeModal === 'bookings'} transparent animationType="slide">
+      <Modal visible={activeModal === 'bookings'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.editOverlay}>
           <View style={[styles.editContainer, { height: '85%' }]}>
             <View style={styles.editHeader}>
@@ -541,7 +527,7 @@ export default function ProfileScreen({ navigation }: any) {
       </Modal>
 
       {/* 4. Real Estate Ledger: Payments (Redesigned Financials) */}
-      <Modal visible={activeModal === 'payments'} transparent animationType="slide">
+      <Modal visible={activeModal === 'payments'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.editOverlay}>
           <View style={styles.editContainer}>
             <View style={styles.editHeader}>
@@ -571,6 +557,7 @@ export default function ProfileScreen({ navigation }: any) {
         visible={alertConfig.visible}
         transparent={true}
         animationType="fade"
+        onRequestClose={() => setAlertConfig({ ...alertConfig, visible: false })}
       >
         <View style={styles.alertOverlay}>
           <Animated.View entering={ZoomIn.duration(400)} style={styles.alertBox}>

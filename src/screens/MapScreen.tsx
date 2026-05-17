@@ -12,37 +12,39 @@ import MapView, { Marker } from 'react-native-maps';
 import { Theme } from '../styles/theme';
 import { ChevronLeft, Star } from 'lucide-react-native';
 
-const { width, height } = Dimensions.get('window');
+import { propertyApi } from '../api/properties';
 
-const PROPERTIES = [
-  {
-    id: '1',
-    title: 'Skyline Penthouse',
-    price: '$2.5M',
-    location: { latitude: 40.7128, longitude: -74.0060 },
-    image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=400&q=80',
-    rating: 4.9
-  },
-  {
-    id: '2',
-    title: 'Emerald Valley Villa',
-    price: '$1.8M',
-    location: { latitude: 40.7300, longitude: -73.9950 },
-    image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=400&q=80',
-    rating: 4.8
-  },
-  {
-    id: '3',
-    title: 'Modern Loft',
-    price: '$950K',
-    location: { latitude: 40.7200, longitude: -74.0100 },
-    image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=400&q=80',
-    rating: 4.7
-  }
-];
+const { width, height } = Dimensions.get('window');
+const GOLD = '#D4AF37';
 
 export default function MapScreen({ navigation }: any) {
   const [selectedProperty, setSelectedProperty] = useState<any>(null);
+  const [properties, setProperties] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    const fetchProperties = async () => {
+      try {
+        const { data } = await propertyApi.getProperties();
+        if (data) {
+          // Add some random offsets if coordinates are missing or same
+          const processed = data.map((p: any, idx: number) => ({
+            ...p,
+            location: {
+              latitude: p.latitude || 40.7128 + (idx * 0.01),
+              longitude: p.longitude || -74.0060 + (idx * 0.01)
+            }
+          }));
+          setProperties(processed);
+        }
+      } catch (error) {
+        console.error('Error fetching map properties:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProperties();
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -52,16 +54,17 @@ export default function MapScreen({ navigation }: any) {
           initialRegion={{
             latitude: 40.7128,
             longitude: -74.0060,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
+            latitudeDelta: 0.1,
+            longitudeDelta: 0.1,
           }}
           customMapStyle={mapStyle}
         >
-          {PROPERTIES.map((prop) => (
+          {properties.map((prop) => (
             <Marker
               key={prop.id}
               coordinate={prop.location}
               onPress={() => setSelectedProperty(prop)}
+              tracksViewChanges={false}
             >
               <View style={[
                 styles.marker, 
@@ -70,7 +73,7 @@ export default function MapScreen({ navigation }: any) {
                 <Text style={[
                   styles.markerText,
                   selectedProperty?.id === prop.id && styles.selectedMarkerText
-                ]}>{prop.price}</Text>
+                ]}>${(prop.price / 1000000).toFixed(1)}M</Text>
               </View>
             </Marker>
           ))}
@@ -87,10 +90,10 @@ export default function MapScreen({ navigation }: any) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <ChevronLeft color={Theme.colors.text} size={24} />
+          <ChevronLeft color="white" size={24} />
         </TouchableOpacity>
         <View style={styles.searchBox}>
-          <Text style={styles.searchBoxText}>Manhattan, NY</Text>
+          <Text style={styles.searchBoxText}>Explore Homes on Map</Text>
         </View>
       </View>
 
@@ -101,16 +104,17 @@ export default function MapScreen({ navigation }: any) {
           activeOpacity={0.9}
           onPress={() => navigation.navigate('PropertyDetails', { property: selectedProperty })}
         >
-          <Image source={{ uri: selectedProperty.image }} style={styles.previewImage} />
+          <Image source={{ uri: selectedProperty.images?.[0] || 'https://via.placeholder.com/400' }} style={styles.previewImage} />
           <View style={styles.previewInfo}>
-            <Text style={styles.previewTitle}>{selectedProperty.title}</Text>
+            <Text style={styles.previewTitle} numberOfLines={1}>{selectedProperty.title}</Text>
             <View style={styles.previewMeta}>
               <View style={styles.ratingRow}>
-                <Star color="#F59E0B" fill="#F59E0B" size={12} />
-                <Text style={styles.ratingText}>{selectedProperty.rating}</Text>
+                <Star color={GOLD} fill={GOLD} size={12} />
+                <Text style={styles.ratingText}>4.9</Text>
               </View>
-              <Text style={styles.previewPrice}>{selectedProperty.price}</Text>
+              <Text style={styles.previewPrice}>${Number(selectedProperty.price).toLocaleString()}</Text>
             </View>
+            <Text style={styles.tapText}>Tap to view full details</Text>
           </View>
         </TouchableOpacity>
       )}
@@ -191,29 +195,43 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   marker: {
-    backgroundColor: Theme.colors.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: Theme.colors.primary,
+    backgroundColor: '#0A0A0A',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: GOLD,
+    shadowColor: GOLD,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   selectedMarker: {
-    backgroundColor: Theme.colors.primary,
+    backgroundColor: GOLD,
+    borderColor: 'white',
+    transform: [{ scale: 1.15 }],
   },
   markerText: {
-    color: Theme.colors.text,
-    fontWeight: 'bold',
-    fontSize: 12,
+    color: GOLD,
+    fontWeight: '900',
+    fontSize: 13,
   },
   selectedMarkerText: {
-    color: 'white',
+    color: 'black',
+  },
+  tapText: {
+    color: GOLD,
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginTop: 5,
+    textTransform: 'uppercase',
   },
   previewCard: {
     position: 'absolute',
     bottom: 40,
-    left: 20,
-    right: 20,
+    width: width > 540 ? 500 : width - 40,
+    left: width > 540 ? (width - 500) / 2 : 20,
     backgroundColor: Theme.colors.surface,
     borderRadius: 20,
     flexDirection: 'row',

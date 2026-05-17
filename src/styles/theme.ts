@@ -1,19 +1,19 @@
 export const Theme = {
   colors: {
-    primary: '#6366F1', // Indigo
-    secondary: '#10B981', // Emerald
-    background: '#0F172A', // Slate 900
-    surface: '#1E293B', // Slate 800
-    surfaceLight: '#334155', // Slate 700
-    text: '#F8FAFC', // Slate 50
-    textMuted: '#94A3B8', // Slate 400
-    border: '#334155',
+    primary: '#D4AF37', // Gold
+    secondary: '#B88A44', // Bronze/Dark Gold
+    background: '#050505', // Deep Black
+    surface: '#0D0D0D', // Near Black
+    surfaceLight: '#1A1A1A', // Dark Gray
+    text: '#FFFFFF', 
+    textMuted: 'rgba(255, 255, 255, 0.5)',
+    border: 'rgba(255, 255, 255, 0.08)',
     error: '#EF4444',
     success: '#10B981',
-    glass: 'rgba(255, 255, 255, 0.05)',
-    glassBorder: 'rgba(255, 255, 255, 0.1)',
+    glass: 'rgba(255, 255, 255, 0.03)',
+    glassBorder: 'rgba(255, 255, 255, 0.08)',
     gold: '#D4AF37',
-    goldGradient: ['#F9F295', '#E0AA3E', '#B88A44', '#D4AF37'] as const,
+    goldGradient: ['#D4AF37', '#B88A44', '#E0AA3E', '#D4AF37'] as const,
   },
   spacing: {
     xs: 4,
