@@ -4,7 +4,7 @@ export const profileApi = {
   /**
    * Get user profile
    */
-  getProfile: async (userId: string) => {
+  getProfile: async (userId: string): Promise<{ data: any; error: any }> => {
     return await supabase
       .from('profiles')
       .select('*')
@@ -15,9 +15,9 @@ export const profileApi = {
   /**
    * Update user profile
    */
-  updateProfile: async (userId: string, updates: any) => {
-    return await supabase
-      .from('profiles')
+  updateProfile: async (userId: string, updates: any): Promise<{ data: any; error: any }> => {
+    return await (supabase
+      .from('profiles') as any)
       .update(updates)
       .eq('id', userId);
   },
