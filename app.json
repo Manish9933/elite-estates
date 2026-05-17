@@ -36,7 +36,7 @@
     "experiments": {
       "typedRoutes": true
     },
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "plugins": [
       "expo-secure-store"
     ],
