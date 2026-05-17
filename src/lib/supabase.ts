@@ -105,13 +105,32 @@ const ExpoSecureStoreAdapter = {
   },
 };
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: ExpoSecureStoreAdapter as any,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-});
+let supabase: ReturnType<typeof createClient>;
 
+try {
+  supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      storage: ExpoSecureStoreAdapter as any,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  });
+} catch (error) {
+  console.error('Failed to initialize Supabase client:', error);
+  // Create a minimal fallback client to prevent hard crashes
+  supabase = createClient(
+    supabaseUrl || 'https://placeholder.supabase.co',
+    supabaseAnonKey || 'placeholder-key',
+    {
+      auth: {
+        storage: ExpoSecureStoreAdapter as any,
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
+    }
+  );
+}
 
+export { supabase };
