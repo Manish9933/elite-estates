@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { authApi } from '../api/auth';
+import { profileApi } from '../api/profiles';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  profile: any | null;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -15,6 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,7 +26,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         const { data: { session: initialSession } } = await authApi.getSession();
         setSession(initialSession);
-        setUser(initialSession?.user ?? null);
+        const currentUser = initialSession?.user ?? null;
+        setUser(currentUser);
+        
+        if (currentUser) {
+          try {
+            const { data } = await profileApi.getProfile(currentUser.id);
+            if (data) setProfile(data);
+          } catch (e) {
+            console.error('Error fetching profile in auth context', e);
+          }
+        }
       } catch (error) {
         console.error('Error initializing auth:', error);
       } finally {
@@ -34,9 +47,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     initializeAuth();
 
     // Listen for auth changes
-    const { data: { subscription } } = authApi.onAuthStateChange((_event, newSession) => {
+    const { data: { subscription } } = authApi.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession);
-      setUser(newSession?.user ?? null);
+      const currentUser = newSession?.user ?? null;
+      setUser(currentUser);
+      
+      if (currentUser) {
+        try {
+          const { data } = await profileApi.getProfile(currentUser.id);
+          if (data) setProfile(data);
+        } catch (e) {
+          console.error('Error fetching profile in auth change', e);
+        }
+      } else {
+        setProfile(null);
+      }
       setLoading(false);
     });
 
@@ -50,6 +75,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await authApi.signOut();
       setSession(null);
       setUser(null);
+      setProfile(null);
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -59,14 +85,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const { data: { session: refreshedSession } } = await authApi.getSession();
       setSession(refreshedSession);
-      setUser(refreshedSession?.user ?? null);
+      const currentUser = refreshedSession?.user ?? null;
+      setUser(currentUser);
+      
+      if (currentUser) {
+        try {
+          const { data } = await profileApi.getProfile(currentUser.id);
+          if (data) setProfile(data);
+        } catch (e) {
+          console.error('Error refreshing profile in auth context', e);
+        }
+      }
     } catch (error) {
       console.error('Error refreshing session:', error);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut, refreshSession }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, signOut, refreshSession }}>
       {children}
     </AuthContext.Provider>
   );

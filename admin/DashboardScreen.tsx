@@ -16,7 +16,9 @@ import {
    Alert,
    RefreshControl,
    Modal,
-   KeyboardAvoidingView
+   KeyboardAvoidingView,
+   BackHandler,
+   TouchableWithoutFeedback
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -49,6 +51,7 @@ import {
    Camera,
    Upload,
    ShieldAlert,
+    Shield,
    ShieldCheck as ShieldCheckIcon,
    MessageSquare,
    Send,
@@ -104,7 +107,8 @@ const uriToBuffer = async (uri: string): Promise<ArrayBuffer> => {
 };
 
 export default function DashboardScreen({ navigation }: any) {
-   const { width, height } = useWindowDimensions();
+    const { user, profile, signOut } = useAuth();
+    const { width, height } = useWindowDimensions();
    const isWeb = width > 1024;
    const isTablet = width > 768 && width <= 1024;
 
@@ -118,7 +122,47 @@ export default function DashboardScreen({ navigation }: any) {
    const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'sold'>('all');
    const [notifications, setNotifications] = useState<any[]>([]);
    const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+   const [rolePickerUser, setRolePickerUser] = useState<any>(null);
    const [notifFilter, setNotifFilter] = useState<'All' | 'Offers' | 'Messages' | 'System'>('All');
+
+    const handleExit = () => {
+       if (navigation.canGoBack()) {
+          navigation.goBack();
+       } else {
+          Alert.alert(
+             "Confirm Exit",
+             "Are you sure you want to sign out and exit the dashboard?",
+             [
+                { text: "Cancel", style: "cancel" },
+                { text: "Sign Out", style: "destructive", onPress: () => signOut() }
+             ]
+          );
+       }
+    };
+
+    useEffect(() => {
+       const backAction = () => {
+          if (!navigation.canGoBack()) {
+             Alert.alert(
+                "Confirm Exit",
+                "Are you sure you want to sign out and exit the dashboard?",
+                [
+                   { text: "Cancel", style: "cancel" },
+                   { text: "Sign Out", style: "destructive", onPress: () => signOut() }
+                ]
+             );
+             return true;
+          }
+          return false;
+       };
+
+       const backHandler = BackHandler.addEventListener(
+          "hardwareBackPress",
+          backAction
+       );
+
+       return () => backHandler.remove();
+    }, [navigation, signOut]);
 
    // Custom Modal States
    const [errorInfo, setErrorInfo] = useState<{ visible: boolean, title: string, message: string }>({ visible: false, title: '', message: '' });
@@ -1310,17 +1354,53 @@ export default function DashboardScreen({ navigation }: any) {
                      />
                      <View style={{ flex: 1 }}>
                         <Text style={[styles.statusValue, { fontSize: 16 }]}>{u.full_name || 'Anonymous'}</Text>
-                        <Text style={[styles.statusLabel, { color: GOLD }]}>{u.role?.toUpperCase() || 'USER'}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                            <Text style={[styles.statusLabel, { color: GOLD, fontSize: 12, marginRight: 8 }]}>{u.role?.toUpperCase() || 'USER'}</Text>
+                            {u.phone && <Text style={{ color: '#666', fontSize: 12 }}>•  {u.phone}</Text>}
+                         </View>
                      </View>
                      <View style={styles.flexRow}>
                         <TouchableOpacity
-                           style={[styles.miniIcon, { backgroundColor: 'rgba(16, 185, 129, 0.1)', marginRight: 10 }]}
-                           onPress={async () => {
-                              await supabase.from('profiles').update({ role: 'agent' }).eq('id', u.id);
-                              fetchData();
-                           }}
+                           style={[styles.miniIcon, { backgroundColor: 'rgba(212, 175, 55, 0.1)', marginRight: 10 }]} onPress={() => setRolePickerUser(u)}
+                           /* disabled_onPress={async () => {
+                              Alert.alert(
+                                  "Assign Access Rank",
+                                  `Specify the operational role for ${u.full_name || 'Manish'}:`,
+                                  [
+                                     { text: "Buyer", onPress: async () => {
+                                        const { error } = await supabase.from('profiles').update({ role: 'buyer' }).eq('id', u.id);
+                                        if (error) {
+                                           setErrorInfo({ visible: true, title: "Update Failed", message: error.message });
+                                        } else {
+                                           fetchData();
+                                           setSuccessInfo({ visible: true, title: "Rank Updated", message: `${u.full_name || 'Manish'} is now registered as a Buyer.` });
+                                        }
+                                     }},
+                                     { text: "Agent", onPress: async () => {
+                                        const { error } = await supabase.from('profiles').update({ role: 'agent' }).eq('id', u.id);
+                                        if (error) {
+                                           setErrorInfo({ visible: true, title: "Update Failed", message: error.message });
+                                        } else {
+                                           fetchData();
+                                           setSuccessInfo({ visible: true, title: "Rank Updated", message: `${u.full_name || 'Manish'} is now registered as an Agent.` });
+                                        }
+                                     }},
+                                     { text: "Admin", onPress: async () => {
+                                        const { error } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', u.id);
+                                        if (error) {
+                                           setErrorInfo({ visible: true, title: "Update Failed", message: error.message });
+                                        } else {
+                                           fetchData();
+                                           setSuccessInfo({ visible: true, title: "Rank Updated", message: `${u.full_name || 'Manish'} has been promoted to Admin.` });
+                                        }
+                                     }},
+                                     { text: "Cancel", style: "cancel" }
+                                  ]
+                               );
+                              // Action handled asynchronously
+                           }} */
                         >
-                           <Briefcase size={16} color="#10B981" />
+                           <Briefcase size={16} color={GOLD} />
                         </TouchableOpacity>
                         <TouchableOpacity
                            style={[styles.miniIcon, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}
@@ -1463,7 +1543,7 @@ export default function DashboardScreen({ navigation }: any) {
                      <SidebarItem icon={Users} label="Users" active={activeTab === 'Users'} />
                      <SidebarItem icon={Tag} label="Offers" active={activeTab === 'Offers'} />
                   </View>
-                  <TouchableOpacity style={styles.exitButton} onPress={() => navigation.goBack()}>
+                  <TouchableOpacity style={styles.exitButton} onPress={handleExit}>
                      <ArrowLeft size={18} color="#666" />
                      <Text style={styles.exitText}>Exit</Text>
                   </TouchableOpacity>
@@ -1474,7 +1554,7 @@ export default function DashboardScreen({ navigation }: any) {
                <Animated.View style={[styles.topNavbar, headerStyle]}>
                   <View style={styles.navLeft}>
                      {!isWeb && (
-                        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.mobileBackBtn}>
+                        <TouchableOpacity onPress={handleExit} style={styles.mobileBackBtn}>
                            <ArrowLeft size={22} color="white" />
                         </TouchableOpacity>
                      )}
@@ -1500,7 +1580,7 @@ export default function DashboardScreen({ navigation }: any) {
                            </View>
                         )}
                      </TouchableOpacity>
-                     <Image source={{ uri: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=100' }} style={styles.avatarImg} />
+                     <Image source={{ uri: profile?.avatar_url || user?.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=100' }} style={styles.avatarImg} />
                   </View>
                </Animated.View>
 
@@ -1514,15 +1594,67 @@ export default function DashboardScreen({ navigation }: any) {
                         { id: 'Offers', icon: Tag },
                      ].map(tab => {
                         const Icon = tab.icon;
+                         const tabThemes: Record<string, { color: string; bg: string; border: string; glow: string }> = {
+                            Overview: {
+                               color: '#38BDF8', // Ice Blue
+                               bg: 'rgba(56, 189, 248, 0.08)',
+                               border: 'rgba(56, 189, 248, 0.25)',
+                               glow: '#38BDF8'
+                            },
+                            Properties: {
+                               color: '#34D399', // Emerald Green
+                               bg: 'rgba(52, 211, 153, 0.08)',
+                               border: 'rgba(52, 211, 153, 0.25)',
+                               glow: '#34D399'
+                            },
+                            Users: {
+                               color: '#FBBF24', // Luxury Gold
+                               bg: 'rgba(251, 191, 36, 0.08)',
+                               border: 'rgba(251, 191, 36, 0.25)',
+                               glow: '#FBBF24'
+                            },
+                            Messages: {
+                               color: '#A78BFA', // Violet
+                               bg: 'rgba(167, 139, 250, 0.08)',
+                               border: 'rgba(167, 139, 250, 0.25)',
+                               glow: '#A78BFA'
+                            },
+                            Offers: {
+                               color: '#FB7185', // Sunset Rose
+                               bg: 'rgba(251, 113, 133, 0.08)',
+                               border: 'rgba(251, 113, 133, 0.25)',
+                               glow: '#FB7185'
+                            }
+                         };
+                         const theme = tabThemes[tab.id] || tabThemes.Overview;
                         const isActive = activeTab === tab.id;
                         return (
                            <TouchableOpacity
                               key={`tab-${tab.id}`}
-                              onPress={() => setActiveTab(tab.id)}
-                              style={[styles.mGridTab, isActive && styles.mGridTabActive]}
+                              onPress={() => setActiveTab(tab.id)} style={[styles.mGridTab, isActive ? { backgroundColor: theme.color, borderColor: theme.color, shadowColor: theme.glow, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8 } : { borderColor: theme.border, backgroundColor: 'rgba(22, 22, 22, 0.6)' }]}
+                              /* style={[
+                                 styles.mGridTab, 
+                                 isActive ? {
+                                    backgroundColor: theme.bg,
+                                    borderColor: theme.border,
+                                    shadowColor: theme.glow,
+                                    shadowOffset: { width: 0, height: 4 },
+                                    shadowOpacity: 0.35,
+                                    shadowRadius: 8,
+                                    elevation: 6,
+                                 } : {
+                                    borderColor: 'rgba(255, 255, 255, 0.04)'
+                                 }
+                              ]} */
                            >
-                              <Icon size={24} color={isActive ? DARK_BG : GOLD} style={{ marginBottom: 8 }} />
-                              <Text style={[styles.mGridTabText, isActive && styles.mGridTabTextActive]}>{tab.id}</Text>
+                              <Icon size={24} color={isActive ? '#000000' : theme.color + '70'} style={{ marginBottom: 8 }} />
+                              <Text style={[
+                                 styles.mGridTabText, 
+                                 { color: isActive ? '#000000' : theme.color + '80' },
+                                 isActive && { fontWeight: '900', fontSize: 12.5 }
+                              ]}>
+                                 {tab.id}
+                              </Text>
                            </TouchableOpacity>
                         );
                      })}
@@ -2225,9 +2357,88 @@ export default function DashboardScreen({ navigation }: any) {
                            }}
                         />
                      );
-                  })()}
+})()}
                </View>
             </BlurView>
+         </Modal>
+
+         {/* Custom Access Rank Modal */}
+         <Modal visible={!!rolePickerUser} transparent animationType="fade" onRequestClose={() => setRolePickerUser(null)}>
+            <TouchableOpacity activeOpacity={1} style={styles.alertOverlay} onPress={() => setRolePickerUser(null)}>
+               <TouchableWithoutFeedback>
+                  <Animated.View entering={ZoomIn} style={[styles.alertCard, { width: 320, padding: 25 }]}>
+                  <View style={[styles.alertIconBox, { backgroundColor: 'rgba(212, 175, 55, 0.1)', marginBottom: 15 }]}>
+                     <Shield color={GOLD} size={32} />
+                  </View>
+                  <Text style={[styles.alertTitle, { marginBottom: 5 }]}>Assign Access Rank</Text>
+                  <Text style={[styles.alertMsg, { marginBottom: 20 }]}>
+                     Specify the operational level for {rolePickerUser?.full_name || 'Manish'}:
+                  </Text>
+                  
+                  {/* Option 1: Buyer */}
+                  <TouchableOpacity
+                     style={[styles.alertBtn, { backgroundColor: '#1F1F1F', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 10, paddingVertical: 12 }]}
+                     onPress={async () => {
+                        const u = rolePickerUser;
+                        setRolePickerUser(null);
+                        const { error } = await supabase.from('profiles').update({ role: 'buyer' }).eq('id', u.id);
+                        if (error) {
+                           setErrorInfo({ visible: true, title: "Update Failed", message: error.message });
+                        } else {
+                           fetchData();
+                           setSuccessInfo({ visible: true, title: "Rank Updated", message: `${u.full_name || 'Manish'} is now registered as a Buyer.` });
+                        }
+                     }}
+                  >
+                     <Text style={[styles.alertBtnText, { color: '#FFF' }]}>Buyer</Text>
+                  </TouchableOpacity>
+
+                  {/* Option 2: Agent */}
+                  <TouchableOpacity
+                     style={[styles.alertBtn, { backgroundColor: '#1F1F1F', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 10, paddingVertical: 12 }]}
+                     onPress={async () => {
+                        const u = rolePickerUser;
+                        setRolePickerUser(null);
+                        const { error } = await supabase.from('profiles').update({ role: 'agent' }).eq('id', u.id);
+                        if (error) {
+                           setErrorInfo({ visible: true, title: "Update Failed", message: error.message });
+                        } else {
+                           fetchData();
+                           setSuccessInfo({ visible: true, title: "Rank Updated", message: `${u.full_name || 'Manish'} is now registered as an Agent.` });
+                        }
+                     }}
+                  >
+                     <Text style={[styles.alertBtnText, { color: '#FFF' }]}>Agent</Text>
+                  </TouchableOpacity>
+
+                  {/* Option 3: Admin */}
+                  <TouchableOpacity
+                     style={[styles.alertBtn, { backgroundColor: GOLD, marginBottom: 15, paddingVertical: 12 }]}
+                     onPress={async () => {
+                        const u = rolePickerUser;
+                        setRolePickerUser(null);
+                        const { error } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', u.id);
+                        if (error) {
+                           setErrorInfo({ visible: true, title: "Update Failed", message: error.message });
+                        } else {
+                           fetchData();
+                           setSuccessInfo({ visible: true, title: "Rank Updated", message: `${u.full_name || 'Manish'} has been promoted to Admin.` });
+                        }
+                     }}
+                  >
+                     <Text style={[styles.alertBtnText, { color: '#000', fontWeight: 'bold' }]}>Admin</Text>
+                  </TouchableOpacity>
+
+                  {/* Cancel Button */}
+                  <TouchableOpacity
+                     onPress={() => setRolePickerUser(null)}
+                     style={{ paddingVertical: 5 }}
+                  >
+                     <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, textAlign: 'center' }}>Cancel</Text>
+                  </TouchableOpacity>
+               </Animated.View>
+               </TouchableWithoutFeedback>
+            </TouchableOpacity>
          </Modal>
 
          {/* Counter Offer Modal */}

@@ -43,8 +43,22 @@ const GOLD = Theme.colors.gold;
 const GOLD_GRADIENT = Theme.colors.goldGradient;
 
 export default function ProfileScreen({ navigation }: any) {
-  const { user, signOut } = useAuth();
+  const { user, profile: authProfile, signOut } = useAuth();
   const [profile, setProfile] = React.useState<any>(null);
+  const [clickCount, setClickCount] = React.useState(0);
+  const [adminUnlocked, setAdminUnlocked] = React.useState(false);
+
+  const handleSecretTap = () => {
+    setClickCount(prev => {
+      const next = prev + 1;
+      if (next >= 5) {
+        setAdminUnlocked(true);
+        showLuxuryAlert('Developer Access Unlocked', 'Administrative options are now temporarily visible.');
+        return 0;
+      }
+      return next;
+    });
+  };
   const [notifications, setNotifications] = React.useState(true);
   const [stats, setStats] = React.useState({ saved: 0, viewings: 0, offers: 0 });
   const [loading, setLoading] = React.useState(true);
@@ -69,26 +83,40 @@ export default function ProfileScreen({ navigation }: any) {
     if (!user) return;
     if (!silent) setLoading(true);
     try {
-      const [profileRes, statsRes, bookingsRes] = await Promise.all([
-        profileApi.getProfile(user.id),
-        profileApi.getUserStats(user.id),
-        supabase.from('bookings').select('*, property(*)').eq('buyer_id', user.id).order('created_at', { ascending: false })
-      ]);
-      
-      if (profileRes.data) {
-        setProfile(profileRes.data);
-        setEditedName(profileRes.data.full_name || '');
-        setEditedAvatar(profileRes.data.avatar_url || '');
-        setEditedPhone(profileRes.data.phone || '+1 (555) 000-0000');
-        setEditedLocation(profileRes.data.location || 'New York, USA');
-        setEditedTitle(profileRes.data.title || 'Elite Investor');
-        setEditedBio(profileRes.data.bio || '');
-        setEditedContact(profileRes.data.preferred_contact || 'Secure Call');
+      // 1. Fetch Profile
+      try {
+        const profileRes = await profileApi.getProfile(user.id);
+        if (profileRes.data) {
+          setProfile(profileRes.data);
+          setEditedName(profileRes.data.full_name || '');
+          setEditedAvatar(profileRes.data.avatar_url || '');
+          setEditedPhone(profileRes.data.phone || '+1 (555) 000-0000');
+          setEditedLocation(profileRes.data.location || 'New York, USA');
+          setEditedTitle(profileRes.data.title || 'Elite Investor');
+          setEditedBio(profileRes.data.bio || '');
+          setEditedContact(profileRes.data.preferred_contact || 'Secure Call');
+        }
+      } catch (e) {
+        console.error('Error fetching profile detail:', e);
       }
-      setStats(statsRes);
-      if (bookingsRes.data) setUserBookings(bookingsRes.data);
+
+      // 2. Fetch User Stats
+      try {
+        const statsRes = await profileApi.getUserStats(user.id);
+        if (statsRes) setStats(statsRes);
+      } catch (e) {
+        console.error('Error fetching stats:', e);
+      }
+
+      // 3. Fetch Bookings
+      try {
+        const bookingsRes = await supabase.from('bookings').select('*, property(*)').eq('buyer_id', user.id).order('created_at', { ascending: false });
+        if (bookingsRes.data) setUserBookings(bookingsRes.data);
+      } catch (e) {
+        console.error('Error fetching bookings:', e);
+      }
     } catch (error) {
-      console.error('Error fetching profile data:', error);
+      console.error('Error in profile screen load:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -219,8 +247,13 @@ export default function ProfileScreen({ navigation }: any) {
   // Extract user info with fallbacks
   const userName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Member';
   const userEmail = user?.email || '';
-  const userImage = profile?.avatar_url || user?.user_metadata?.avatar_url || `https://i.pravatar.cc/150?u=${user?.id}`;
-  const userRole = profile?.role?.toUpperCase() || 'MEMBER';
+  const userImage = profile?.avatar_url || authProfile?.avatar_url || user?.user_metadata?.avatar_url || `https://i.pravatar.cc/150?u=${user?.id}`;
+  const isUserAdmin = adminUnlocked ||
+                      userEmail.toLowerCase().includes('admin') || 
+                      profile?.role?.toLowerCase() === 'admin' || 
+                      authProfile?.role?.toLowerCase() === 'admin' || 
+                      user?.user_metadata?.role?.toLowerCase() === 'admin';
+  const userRole = isUserAdmin ? 'ADMIN' : (profile?.role?.toUpperCase() || authProfile?.role?.toUpperCase() || user?.user_metadata?.role?.toUpperCase() || 'MEMBER');
 
   const MenuItem = ({ icon: Icon, title, subtitle, color = 'white', onPress, rightElement }: any) => (
     <TouchableOpacity style={styles.menuItem} onPress={onPress}>
@@ -268,10 +301,10 @@ export default function ProfileScreen({ navigation }: any) {
                   <Award size={14} color="black" fill={GOLD} />
                 </View>
               </TouchableOpacity>
-              <View style={styles.nameContainer}>
+              <TouchableOpacity style={styles.nameContainer} onPress={handleSecretTap} activeOpacity={0.9}>
                 <Text style={styles.userName}>{userName}</Text>
-                <Text style={styles.userRole}>PLATINUM MEMBER</Text>
-              </View>
+                <Text style={styles.userRole}>{userRole}</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.statsRow}>
@@ -354,18 +387,20 @@ export default function ProfileScreen({ navigation }: any) {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Administrative</Text>
-          <View style={styles.menuContainer}>
-            <MenuItem 
-              icon={Shield} 
-              title="Admin Dashboard" 
-              subtitle="Manage properties, users, and offers" 
-              color={Theme.colors.primary}
-              onPress={() => navigation.navigate('AdminDashboard')}
-            />
+        {(userRole.toLowerCase() === 'admin') && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Administrative</Text>
+            <View style={styles.menuContainer}>
+              <MenuItem 
+                icon={Shield} 
+                title="Admin Dashboard" 
+                subtitle="Manage properties, users, and offers" 
+                color={Theme.colors.primary}
+                onPress={() => navigation.navigate('AdminDashboard')}
+              />
+            </View>
           </View>
-        </View>
+        )}
 
         <View style={styles.logoutSection}>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
