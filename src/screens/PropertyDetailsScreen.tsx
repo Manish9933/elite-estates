@@ -427,7 +427,7 @@ This architectural masterpiece features ${property.bhk} Bedrooms and state-of-th
                      return;
                   }
                   
-                  const { error } = await supabase.from('bookings').insert([{
+                  const { error } = await (supabase.from('bookings') as any).insert([{
                      property_id: property.id,
                      buyer_id: user.id,
                      agent_id: property.agent_id || property.user_id,
@@ -506,6 +506,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 25 : 15,
     zIndex: 10,
   },
   backButton: {

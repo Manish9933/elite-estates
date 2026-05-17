@@ -196,7 +196,7 @@ export default function ChatListScreen({ navigation }: any) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.title}>Messages</Text>
         <TouchableOpacity style={styles.iconButton} onPress={handleMoreOptions}>
@@ -408,8 +408,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   listContent: {
+    flexGrow: 1, // Let scroll content fill available space to prevent black gaps
     paddingHorizontal: 25,
-    paddingBottom: 160,
+    paddingBottom: 35, // Reduced from 160 to remove the unwanted black bottom gap
   },
   chatItem: {
     flexDirection: 'row',

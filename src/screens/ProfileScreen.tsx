@@ -74,6 +74,8 @@ export default function ProfileScreen({ navigation }: any) {
   const [editedContact, setEditedContact] = React.useState('Secure Call');
   const [userBookings, setUserBookings] = React.useState<any[]>([]);
   const [alertConfig, setAlertConfig] = React.useState({ visible: false, title: '', message: '', type: 'success' });
+  const [showLogoutModal, setShowLogoutModal] = React.useState(false);
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
 
   const showLuxuryAlert = (title: string, message: string, type: 'success' | 'error' = 'success') => {
     setAlertConfig({ visible: true, title, message, type });
@@ -233,16 +235,7 @@ export default function ProfileScreen({ navigation }: any) {
     }
   };
 
-  const handleLogout = async () => {
-    showLuxuryAlert('Signing Out', 'Your session is being securely terminated. We look forward to your return.', 'success');
-    setTimeout(async () => {
-      try {
-        await signOut();
-      } catch (error: any) {
-        showLuxuryAlert('Error', error.message, 'error');
-      }
-    }, 1500);
-  };
+  // handleLogout is now handled inline by the premium confirm/progress modal
 
   // Extract user info with fallbacks
   const userName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Member';
@@ -269,7 +262,7 @@ export default function ProfileScreen({ navigation }: any) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={GOLD} />
@@ -403,7 +396,7 @@ export default function ProfileScreen({ navigation }: any) {
         )}
 
         <View style={styles.logoutSection}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <TouchableOpacity style={styles.logoutButton} onPress={() => { setShowLogoutModal(true); setIsLoggingOut(false); }}>
             <LogOut size={20} color="#EF4444" />
             <Text style={styles.logoutText}>Secure Logout</Text>
           </TouchableOpacity>
@@ -619,6 +612,69 @@ export default function ProfileScreen({ navigation }: any) {
           </Animated.View>
         </View>
       </Modal>
+
+      {/* Premium Logout Confirmation & Progress Modal */}
+      <Modal
+        visible={showLogoutModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isLoggingOut) setShowLogoutModal(false);
+        }}
+      >
+        <View style={styles.alertOverlay}>
+          <Animated.View entering={ZoomIn.duration(400)} style={styles.alertBox}>
+            <View style={[styles.alertIconBg, isLoggingOut ? { backgroundColor: 'rgba(212, 175, 55, 0.05)' } : { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+              {isLoggingOut ? (
+                <ActivityIndicator size="small" color={GOLD} />
+              ) : (
+                <LogOut size={26} color="#EF4444" />
+              )}
+            </View>
+            <Text style={styles.alertTitle}>
+              {isLoggingOut ? 'Signing Out' : 'Secure Logout'}
+            </Text>
+            <Text style={styles.alertMessage}>
+              {isLoggingOut 
+                ? 'Your session is being securely terminated. We look forward to your return.' 
+                : 'Are you sure you want to terminate your premium session?'}
+            </Text>
+
+            {!isLoggingOut ? (
+              <View style={styles.logoutBtnRow}>
+                <TouchableOpacity 
+                  style={styles.cancelLogoutBtn}
+                  onPress={() => setShowLogoutModal(false)}
+                >
+                  <Text style={styles.cancelLogoutBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.confirmLogoutBtn}
+                  onPress={async () => {
+                    setIsLoggingOut(true);
+                    setTimeout(async () => {
+                      try {
+                        await signOut();
+                      } catch (error: any) {
+                        setIsLoggingOut(false);
+                        setShowLogoutModal(false);
+                        showLuxuryAlert('Error', error.message, 'error');
+                      }
+                    }, 1800);
+                  }}
+                >
+                  <LinearGradient 
+                    colors={['#EF4444', '#991B1B']} 
+                    style={styles.confirmLogoutGradient}
+                  >
+                    <Text style={styles.confirmLogoutBtnText}>Logout</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </Animated.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -629,9 +685,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#050505',
   },
   scrollContent: {
+    flexGrow: 1, // Let scroll content fill available space to prevent black gaps
     padding: 25,
     paddingTop: Platform.OS === 'android' ? 60 : 20,
-    paddingBottom: 160,
+    paddingBottom: 35, // Reduced from 160 to remove the unwanted black bottom gap
     maxWidth: isWeb ? 800 : '100%',
     alignSelf: 'center',
     width: '100%',
@@ -850,6 +907,43 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  logoutBtnRow: {
+    flexDirection: 'row',
+    gap: 15,
+    marginTop: 10,
+    width: '100%',
+  },
+  cancelLogoutBtn: {
+    flex: 1,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  cancelLogoutBtnText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  confirmLogoutBtn: {
+    flex: 1,
+    height: 56,
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  confirmLogoutGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  confirmLogoutBtnText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   modalSub: {
     color: 'rgba(255,255,255,0.4)',

@@ -10,16 +10,18 @@ import {
   Image,
   Platform,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, MapPin, SlidersHorizontal, Map as MapIcon, Grid, Heart, Star, Bed, Maximize2, Home } from 'lucide-react-native';
+import { Search, MapPin, SlidersHorizontal, Map as MapIcon, Grid, Heart, Star, Bed, Maximize2, Home, X, Check } from 'lucide-react-native';
 import { Theme } from '../styles/theme';
 import Animated, { FadeInUp, FadeInRight } from 'react-native-reanimated';
 import { useIsFocused } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { propertyApi } from '../api/properties';
 import { ShimmerSkeleton } from '../components/Skeleton';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -39,6 +41,14 @@ export default function ExploreScreen({ navigation, route }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const isFocused = useIsFocused();
 
+  // Custom filter modal states
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
+  const [selectedBhk, setSelectedBhk] = useState<string>('All');
+  const [selectedCity, setSelectedCity] = useState<string>('All');
+  const [onlyFeatured, setOnlyFeatured] = useState<boolean>(false);
+
   // Sync state if navigation params supply a search query
   useEffect(() => {
     if (route.params?.query) {
@@ -54,6 +64,15 @@ export default function ExploreScreen({ navigation, route }: any) {
     }
   }, [route.params?.type]);
 
+  // Sync state if navigation params requests opening the filter modal
+  useEffect(() => {
+    if (route.params?.openFilter) {
+      setShowFilterModal(true);
+      // Clear navigation param so it doesn't open on subsequent tab changes
+      navigation.setParams({ openFilter: undefined });
+    }
+  }, [route.params?.openFilter, navigation]);
+
   // Clean, high-performance search input debounce (400ms)
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -68,20 +87,44 @@ export default function ExploreScreen({ navigation, route }: any) {
     try {
       const isTrending = selectedChip === 'Trending';
       
+      const filters: any = {
+        query: searchQuery,
+        type: isTrending ? 'All' : selectedChip,
+      };
+
+      if (minPrice && !isNaN(Number(minPrice))) {
+        filters.minPrice = Number(minPrice);
+      }
+      if (maxPrice && !isNaN(Number(maxPrice))) {
+        filters.maxPrice = Number(maxPrice);
+      }
+      if (onlyFeatured) {
+        filters.isFeatured = true;
+      }
+
       // Load properties and favorites concurrently to save loading time
       const [propsRes, favoritesRes] = await Promise.all([
-        propertyApi.getProperties({
-          query: searchQuery,
-          type: isTrending ? 'All' : selectedChip
-        }),
+        propertyApi.getProperties(filters),
         user ? propertyApi.getFavorites(user.id) : Promise.resolve({ data: null, error: null })
       ]);
       
       if (propsRes.data) {
         let filteredData = propsRes.data;
+        
+        // Local pass: BHK filter
+        if (selectedBhk !== 'All') {
+          const bhkNum = parseInt(selectedBhk);
+          filteredData = filteredData.filter((p: any) => p.bhk === bhkNum);
+        }
+
+        // Local pass: City filter
+        if (selectedCity !== 'All') {
+          filteredData = filteredData.filter((p: any) => p.city?.toLowerCase() === selectedCity.toLowerCase());
+        }
+
         if (isTrending) {
-          // Simulate trending by filtering high ratings or randomizing/sorting
-          filteredData = propsRes.data.filter((p: any) => (p.price > 1000000)).slice(0, 8);
+          // Simulate trending by filtering high ratings or sorting
+          filteredData = filteredData.filter((p: any) => (p.price > 1000000)).slice(0, 8);
         }
         setProperties(filteredData);
       }
@@ -96,7 +139,7 @@ export default function ExploreScreen({ navigation, route }: any) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [searchQuery, selectedChip, user]);
+  }, [searchQuery, selectedChip, user, minPrice, maxPrice, selectedBhk, selectedCity, onlyFeatured]);
 
   useEffect(() => {
     if (isFocused) {
@@ -231,7 +274,7 @@ export default function ExploreScreen({ navigation, route }: any) {
             value={searchInput}
             onChangeText={setSearchInput}
           />
-          <TouchableOpacity style={styles.filterButton}>
+          <TouchableOpacity style={styles.filterButton} onPress={() => setShowFilterModal(true)}>
             <SlidersHorizontal color="white" size={18} />
           </TouchableOpacity>
         </View>
@@ -324,6 +367,138 @@ export default function ExploreScreen({ navigation, route }: any) {
           )}
         />
       )}
+
+      {/* Luxury Glassmorphic Filter Modal */}
+      <Modal
+        visible={showFilterModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.headerTitleWrap}>
+                <Text style={styles.modalTitle}>Filter Catalog</Text>
+                <Text style={styles.modalSubTitle}>Curate your luxury parameters</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowFilterModal(false)} style={styles.closeBtn}>
+                <X color="white" size={20} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              {/* BHK Selection */}
+              <View style={styles.filterSection}>
+                <Text style={styles.sectionLabel}>Rooms / BHK</Text>
+                <View style={styles.bhkGrid}>
+                  {['All', '1', '2', '3', '4', '5'].map((bhkVal) => {
+                    const isSelected = selectedBhk === bhkVal;
+                    return (
+                      <TouchableOpacity
+                        key={bhkVal}
+                        style={[styles.bhkChip, isSelected && styles.bhkChipActive]}
+                        onPress={() => setSelectedBhk(bhkVal)}
+                      >
+                        <Text style={[styles.bhkChipText, isSelected && styles.textActive]}>
+                          {bhkVal === 'All' ? 'All' : `${bhkVal} BHK`}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Price Budget selection */}
+              <View style={styles.filterSection}>
+                <Text style={styles.sectionLabel}>Budget Valuation ($)</Text>
+                <View style={styles.priceRow}>
+                  <TextInput
+                    style={styles.priceInput}
+                    placeholder="Min Price"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    keyboardType="numeric"
+                    value={minPrice}
+                    onChangeText={setMinPrice}
+                  />
+                  <View style={styles.priceDivider} />
+                  <TextInput
+                    style={styles.priceInput}
+                    placeholder="Max Price"
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    keyboardType="numeric"
+                    value={maxPrice}
+                    onChangeText={setMaxPrice}
+                  />
+                </View>
+              </View>
+
+              {/* City Filter */}
+              <View style={styles.filterSection}>
+                <Text style={styles.sectionLabel}>City Location</Text>
+                <View style={styles.cityGrid}>
+                  {['All', 'Delhi', 'Gurgaon', 'Mumbai', 'Noida'].map((cityVal) => {
+                    const isSelected = selectedCity === cityVal;
+                    return (
+                      <TouchableOpacity
+                        key={cityVal}
+                        style={[styles.cityChip, isSelected && styles.cityChipActive]}
+                        onPress={() => setSelectedCity(cityVal)}
+                      >
+                        <Text style={[styles.cityChipText, isSelected && styles.textActive]}>
+                          {cityVal}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Featured toggle */}
+              <View style={styles.featuredToggleSection}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.featuredToggleTitle}>Editor's Choice Only</Text>
+                  <Text style={styles.featuredToggleDesc}>Display verified premier masterpieces</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.toggleSwitch, onlyFeatured && styles.toggleSwitchActive]}
+                  onPress={() => setOnlyFeatured(!onlyFeatured)}
+                >
+                  <View style={[styles.toggleKnob, onlyFeatured && styles.toggleKnobActive]} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Action buttons */}
+              <View style={styles.actionBtnRow}>
+                <TouchableOpacity
+                  style={styles.resetBtn}
+                  onPress={() => {
+                    setMinPrice('');
+                    setMaxPrice('');
+                    setSelectedBhk('All');
+                    setSelectedCity('All');
+                    setOnlyFeatured(false);
+                  }}
+                >
+                  <Text style={styles.resetBtnText}>Clear All</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.applyBtn}
+                  onPress={() => {
+                    setShowFilterModal(false);
+                    fetchProperties();
+                  }}
+                >
+                  <LinearGradient colors={GOLD_GRADIENT} style={styles.applyBtnGradient}>
+                    <Text style={styles.applyBtnText}>Apply Filters</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -429,8 +604,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   resultsList: {
+    flexGrow: 1, // Let scroll content fill available space to prevent black gaps
     paddingHorizontal: 25,
-    paddingBottom: 160,
+    paddingBottom: 35, // Reduced from 160 to remove the unwanted black bottom gap
   },
   propertyCard: {
     backgroundColor: '#0D0D0D',
@@ -610,5 +786,217 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 2,
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#0D0D0D',
+    borderRadius: 30,
+    padding: 25,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.2)',
+    shadowColor: GOLD,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 25,
+  },
+  headerTitleWrap: {
+    flex: 1,
+  },
+  modalTitle: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: 'bold',
+    letterSpacing: -0.5,
+  },
+  modalSubTitle: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  modalBody: {
+    gap: 25,
+  },
+  filterSection: {
+    gap: 12,
+  },
+  sectionLabel: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  bhkGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  bhkChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  bhkChipActive: {
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+  },
+  bhkChipText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  textActive: {
+    color: GOLD,
+    fontWeight: 'bold',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  priceInput: {
+    flex: 1,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 15,
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  priceDivider: {
+    width: 10,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  cityGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  cityChip: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  cityChipActive: {
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+  },
+  cityChipText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  featuredToggleSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    padding: 15,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
+  },
+  featuredToggleTitle: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  featuredToggleDesc: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  toggleSwitch: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 2,
+  },
+  toggleSwitchActive: {
+    backgroundColor: GOLD,
+  },
+  toggleKnob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'white',
+    transform: [{ translateX: 0 }],
+  },
+  toggleKnobActive: {
+    transform: [{ translateX: 22 }],
+    backgroundColor: 'black',
+  },
+  actionBtnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 15,
+  },
+  resetBtn: {
+    flex: 1,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  resetBtnText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  applyBtn: {
+    flex: 1.5,
+    height: 54,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  applyBtnGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  applyBtnText: {
+    color: 'black',
+    fontSize: 15,
+    fontWeight: 'bold',
   }
 });
