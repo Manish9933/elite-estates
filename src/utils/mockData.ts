@@ -36,6 +36,7 @@ export interface UserProfile {
 }
 
 export const CATEGORIES: Category[] = [
+  { id: 'trending', name: 'Trending', icon: '🔥' },
   { id: '1', name: 'Apartments', icon: '🏢' },
   { id: '2', name: 'Villas', icon: '🏡' },
   { id: '3', name: 'Penthouses', icon: '🏙️' },

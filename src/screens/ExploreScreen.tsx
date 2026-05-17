@@ -16,42 +16,112 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, MapPin, SlidersHorizontal, Map as MapIcon, Grid, Heart, Star, Bed, Maximize2, Home } from 'lucide-react-native';
 import { Theme } from '../styles/theme';
 import Animated, { FadeInUp, FadeInRight } from 'react-native-reanimated';
+import { useIsFocused } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { propertyApi } from '../api/properties';
+import { ShimmerSkeleton } from '../components/Skeleton';
 
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
 const GOLD = Theme.colors.gold;
 const GOLD_GRADIENT = Theme.colors.goldGradient;
 
-const FILTER_CHIPS = ['All', 'Apartment', 'Villa', 'Penthouse', 'Mansion', 'Townhouse'];
+const FILTER_CHIPS = ['All', 'Trending', 'Apartment', 'Villa', 'Penthouse', 'Mansion', 'Townhouse'];
 
 export default function ExploreScreen({ navigation, route }: any) {
+  const { user } = useAuth();
   const [selectedChip, setSelectedChip] = useState(route.params?.type || 'All');
+  const [searchInput, setSearchInput] = useState(route.params?.query || '');
   const [searchQuery, setSearchQuery] = useState(route.params?.query || '');
   const [properties, setProperties] = useState<any[]>([]);
+  const [userFavorites, setUserFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const isFocused = useIsFocused();
+
+  // Sync state if navigation params supply a search query
+  useEffect(() => {
+    if (route.params?.query) {
+      setSearchInput(route.params.query);
+      setSearchQuery(route.params.query);
+    }
+  }, [route.params?.query]);
+
+  // Sync state if navigation params supply a category chip
+  useEffect(() => {
+    if (route.params?.type) {
+      setSelectedChip(route.params.type);
+    }
+  }, [route.params?.type]);
+
+  // Clean, high-performance search input debounce (400ms)
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchInput]);
 
   const fetchProperties = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await propertyApi.getProperties({
-        query: searchQuery,
-        type: selectedChip
-      });
-      if (data) setProperties(data);
+      const isTrending = selectedChip === 'Trending';
+      
+      // Load properties and favorites concurrently to save loading time
+      const [propsRes, favoritesRes] = await Promise.all([
+        propertyApi.getProperties({
+          query: searchQuery,
+          type: isTrending ? 'All' : selectedChip
+        }),
+        user ? propertyApi.getFavorites(user.id) : Promise.resolve({ data: null, error: null })
+      ]);
+      
+      if (propsRes.data) {
+        let filteredData = propsRes.data;
+        if (isTrending) {
+          // Simulate trending by filtering high ratings or randomizing/sorting
+          filteredData = propsRes.data.filter((p: any) => (p.price > 1000000)).slice(0, 8);
+        }
+        setProperties(filteredData);
+      }
+
+      if (favoritesRes?.data) {
+        const favIds = new Set(favoritesRes.data.map((f: any) => f.property.id));
+        setUserFavorites(favIds);
+      }
     } catch (error) {
       console.error('Error fetching properties:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [searchQuery, selectedChip]);
+  }, [searchQuery, selectedChip, user]);
 
   useEffect(() => {
-    fetchProperties();
-  }, [fetchProperties]);
+    if (isFocused) {
+      fetchProperties();
+    }
+  }, [isFocused, fetchProperties]);
+
+  const handleToggleFavorite = async (propertyId: string) => {
+    if (!user) return;
+    const isFav = userFavorites.has(propertyId);
+
+    // Optimistic Update
+    const newFavs = new Set(userFavorites);
+    if (isFav) newFavs.delete(propertyId);
+    else newFavs.add(propertyId);
+    setUserFavorites(newFavs);
+
+    try {
+      await propertyApi.toggleFavorite(user.id, propertyId, isFav);
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      // Rollback on error
+      setUserFavorites(userFavorites);
+    }
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -61,46 +131,65 @@ export default function ExploreScreen({ navigation, route }: any) {
   const numColumns = width > 1200 ? 3 : width > 800 ? 2 : 1;
   const cardWidth = width > 800 ? (width - (isWeb ? 120 : 40) - (numColumns - 1) * 20) / numColumns : width - 40;
 
-  const renderPropertyItem = ({ item, index }: { item: any, index: number }) => (
-    <Animated.View 
-      entering={FadeInUp.delay(index * 100)}
-      style={[isWeb && { width: cardWidth, marginBottom: 30 }]}
-    >
-      <TouchableOpacity 
-        style={styles.propertyCard}
-        activeOpacity={0.9}
-        onPress={() => navigation.navigate('PropertyDetails', { property: item })}
+  const renderPropertyItem = ({ item, index }: { item: any, index: number }) => {
+    const isSold = item.status === 'sold';
+    return (
+      <Animated.View 
+        entering={FadeInUp.delay(Math.min(index * 50, 300))}
+        style={[isWeb && { width: cardWidth, marginBottom: 30 }]}
       >
-        <View style={styles.imageContainer}>
-          <Image source={{ uri: item.images?.[0] || 'https://via.placeholder.com/600' }} style={styles.propertyImage} />
-          <View style={styles.premiumBadge}>
-            <Text style={styles.premiumText}>ELITE COLLECTION</Text>
-          </View>
-          <TouchableOpacity style={styles.favoriteButton}>
-            <Heart color="white" size={20} fill={item.isFavorite ? "white" : "transparent"} />
-          </TouchableOpacity>
-          <View style={styles.floatingPrice}>
-            <Text style={styles.priceSymbol}>$</Text>
-            <Text style={styles.priceValue}>{Number(item.price).toLocaleString()}</Text>
-          </View>
-        </View>
-        
-        <View style={styles.propertyDetails}>
-          <View style={styles.typeRow}>
-            <View style={styles.typeTag}>
-              <Text style={styles.typeText}>{item.property_type?.toUpperCase()}</Text>
+        <TouchableOpacity 
+          style={styles.propertyCard}
+          activeOpacity={0.9}
+          onPress={() => navigation.navigate('PropertyDetails', { property: item })}
+        >
+          <View style={styles.imageContainer}>
+            <Image 
+              source={{ uri: item.images?.[0] || 'https://via.placeholder.com/600' }} 
+              style={[styles.propertyImage, isSold && { opacity: 0.45 }]} 
+            />
+            <View style={styles.premiumBadge}>
+              <Text style={styles.premiumText}>ELITE COLLECTION</Text>
             </View>
+            <View style={styles.floatingPrice}>
+              <Text style={styles.priceSymbol}>$</Text>
+              <Text style={styles.priceValue}>{Number(item.price).toLocaleString()}</Text>
+            </View>
+            {isSold && (
+              <View style={styles.soldOverlay}>
+                <View style={styles.soldBadgeContainer}>
+                  <Text style={styles.soldBadgeText}>SOLD OUT</Text>
+                </View>
+              </View>
+            )}
+            <TouchableOpacity 
+              style={styles.favoriteButton}
+              onPress={() => handleToggleFavorite(item.id)}
+            >
+              <Heart 
+                color={userFavorites.has(item.id) ? Theme.colors.gold : "white"} 
+                size={20} 
+                fill={userFavorites.has(item.id) ? Theme.colors.gold : "transparent"} 
+              />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.propertyDetails}>
+            <View style={styles.typeRow}>
+              <View style={styles.typeTag}>
+                <Text style={styles.typeText}>{item.property_type?.toUpperCase()}</Text>
+              </View>
             <View style={styles.ratingBox}>
               <Star color={GOLD} fill={GOLD} size={12} />
               <Text style={styles.ratingText}>4.9</Text>
             </View>
           </View>
           
-          <Text style={styles.titleText}>{item.title}</Text>
+          <Text style={styles.titleText} numberOfLines={1}>{item.title}</Text>
           
           <View style={styles.locationRow}>
             <MapPin color={GOLD} size={16} />
-            <Text style={styles.locationText}>{item.address}</Text>
+            <Text style={styles.locationText} numberOfLines={1}>{item.address}</Text>
           </View>
           
           <View style={styles.luxurySpecs}>
@@ -127,6 +216,7 @@ export default function ExploreScreen({ navigation, route }: any) {
       </TouchableOpacity>
     </Animated.View>
   );
+};
 
   return (
     <View style={styles.container}>
@@ -138,8 +228,8 @@ export default function ExploreScreen({ navigation, route }: any) {
             placeholder="Search by city, neighborhood..." 
             placeholderTextColor={Theme.colors.textMuted}
             style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            value={searchInput}
+            onChangeText={setSearchInput}
           />
           <TouchableOpacity style={styles.filterButton}>
             <SlidersHorizontal color="white" size={18} />
@@ -174,8 +264,30 @@ export default function ExploreScreen({ navigation, route }: any) {
 
       {/* Results List */}
       {loading && !refreshing ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={GOLD} />
+        <View style={{ flex: 1, padding: 25 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+            <ShimmerSkeleton width={140} height={20} borderRadius={4} />
+            <ShimmerSkeleton width={100} height={20} borderRadius={4} />
+          </View>
+          <FlatList 
+            data={[1, 2, 3, 4]}
+            numColumns={numColumns}
+            key={`skeleton-${numColumns}`}
+            renderItem={() => (
+              <View style={{ width: cardWidth, marginBottom: 30, marginRight: numColumns > 1 ? 20 : 0 }}>
+                <ShimmerSkeleton width="100%" height={250} borderRadius={30} style={{ marginBottom: 15 }} />
+                <ShimmerSkeleton width="60%" height={20} borderRadius={4} style={{ marginBottom: 8 }} />
+                <ShimmerSkeleton width="40%" height={15} borderRadius={4} style={{ marginBottom: 15 }} />
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <ShimmerSkeleton width={60} height={30} borderRadius={10} />
+                  <ShimmerSkeleton width={60} height={30} borderRadius={10} />
+                  <ShimmerSkeleton width={60} height={30} borderRadius={10} />
+                </View>
+              </View>
+            )}
+            keyExtractor={i => i.toString()}
+            columnWrapperStyle={numColumns > 1 ? { gap: 20 } : null}
+          />
         </View>
       ) : (
         <FlatList 
@@ -472,5 +584,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  soldOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  soldBadgeContainer: {
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: GOLD,
+    shadowColor: GOLD,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  soldBadgeText: {
+    color: GOLD,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 2,
+    textAlign: 'center',
   }
 });

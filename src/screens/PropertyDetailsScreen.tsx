@@ -10,7 +10,9 @@ import {
   Dimensions, 
   Share,
   Modal,
-  Platform
+  Platform,
+  TextInput,
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
@@ -32,25 +34,78 @@ import { Theme } from '../styles/theme';
 import Animated, { FadeInDown, FadeIn, ZoomIn } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../context/AuthContext';
+import { propertyApi } from '../api/properties';
+import { supabase } from '../lib/supabase';
 
 const { width } = Dimensions.get('window');
 const GOLD = Theme.colors.gold;
 const GOLD_GRADIENT = Theme.colors.goldGradient;
+const APP_URL = "https://elite-estates.com"; // Future hosting URL
 
 export default function PropertyDetailsScreen({ route, navigation }: any) {
   const { property } = route.params;
+  const { user } = useAuth();
+  const [isFavorite, setIsFavorite] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '' });
+  const [offerAmount, setOfferAmount] = useState((property.price || '').toString());
+
+  React.useEffect(() => {
+    if (user && property.id) {
+      propertyApi.isFavorite(user.id, property.id).then(({ isFavorite }) => {
+        setIsFavorite(isFavorite);
+      });
+    }
+  }, [user, property.id]);
+
+  const handleToggleFavorite = async () => {
+    if (!user) {
+      showLuxuryAlert('Authentication Required', 'Please sign in to save properties to your favorites.');
+      return;
+    }
+    
+    // Optimistic Update
+    const nextState = !isFavorite;
+    setIsFavorite(nextState);
+
+    try {
+      await propertyApi.toggleFavorite(user.id, property.id, isFavorite);
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      setIsFavorite(!nextState); // Rollback
+    }
+  };
 
   const showLuxuryAlert = (title: string, message: string) => {
     setAlertConfig({ visible: true, title, message });
   };
 
   const onShare = async () => {
+    const propertyUrl = `${APP_URL}/property/${property.id}`;
+    const shareMessage = `
+🏛️ *ELITE ESTATES EXCLUSIVE* 🏛️
+
+*${property.title.toUpperCase()}*
+💰 Price: $${Number(property.price).toLocaleString()}
+📍 Location: ${property.address}, ${property.city}
+
+This architectural masterpiece features ${property.bhk} Bedrooms and state-of-the-art amenities. 
+
+✨ *Experience true luxury below:* ✨
+🔗 ${propertyUrl}
+
+---
+📱 *Download Elite Estates to explore more*
+👉 ${APP_URL}/download
+    `.trim();
+
     try {
       await Share.share({
-        message: `Check out this amazing property: ${property.title} in ${property.city} for ${property.price}!`,
+        title: `Elite Estates: ${property.title}`,
+        message: shareMessage,
+        url: propertyUrl // Supports iOS preview
       });
     } catch (error) {
       console.error(error);
@@ -91,8 +146,15 @@ export default function PropertyDetailsScreen({ route, navigation }: any) {
               <TouchableOpacity style={styles.actionButton} onPress={onShare}>
                 <Share2 color="white" size={20} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Heart color="white" size={20} />
+              <TouchableOpacity 
+                style={styles.actionButton} 
+                onPress={handleToggleFavorite}
+              >
+                <Heart 
+                  color={isFavorite ? Theme.colors.gold : "white"} 
+                  size={20} 
+                  fill={isFavorite ? Theme.colors.gold : "transparent"} 
+                />
               </TouchableOpacity>
             </View>
           </SafeAreaView>
@@ -135,7 +197,7 @@ export default function PropertyDetailsScreen({ route, navigation }: any) {
                 <View style={styles.specIconCircle}>
                   <BedDouble color={GOLD} size={22} />
                 </View>
-                <View>
+                <View style={{ alignItems: 'center' }}>
                   <Text style={styles.specVal}>{property.bhk} BHK</Text>
                   <Text style={styles.specLab}>Rooms</Text>
                 </View>
@@ -144,7 +206,7 @@ export default function PropertyDetailsScreen({ route, navigation }: any) {
                 <View style={styles.specIconCircle}>
                   <Bath color={GOLD} size={22} />
                 </View>
-                <View>
+                <View style={{ alignItems: 'center' }}>
                   <Text style={styles.specVal}>{property.bathrooms || 2}</Text>
                   <Text style={styles.specLab}>Baths</Text>
                 </View>
@@ -153,7 +215,7 @@ export default function PropertyDetailsScreen({ route, navigation }: any) {
                 <View style={styles.specIconCircle}>
                   <Maximize color={GOLD} size={22} />
                 </View>
-                <View>
+                <View style={{ alignItems: 'center' }}>
                   <Text style={styles.specVal}>{Math.floor(property.area_sqft)}</Text>
                   <Text style={styles.specLab}>Sq.ft</Text>
                 </View>
@@ -188,13 +250,15 @@ export default function PropertyDetailsScreen({ route, navigation }: any) {
           <Animated.View entering={FadeInDown.delay(500)} style={styles.conciergeCard}>
             <View style={styles.conciergeHeader}>
               <Image 
-                source={{ uri: property.agent?.avatar_url || 'https://i.pravatar.cc/150?u=agent' }} 
+                source={{ uri: property.broker_image || (property.agent?.avatar_url && !property.agent?.avatar_url.includes('storage-error') ? property.agent.avatar_url : 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80') }} 
                 style={styles.agentAvatar} 
               />
               <View style={styles.agentInfo}>
-                <Text style={styles.agentName}>{property.agent?.full_name || 'Marcus Sterling'}</Text>
+                <Text style={styles.agentName}>
+                  {property.broker_name || (property.agent?.full_name && property.agent_id !== user?.id ? property.agent.full_name : 'Julian Sterling')}
+                </Text>
                 <View style={styles.roleBadge}>
-                  <Text style={styles.roleText}>Private Concierge</Text>
+                  <Text style={styles.roleText}>{property.broker_name ? 'Official Developer' : 'Official Estate Broker'}</Text>
                 </View>
               </View>
             </View>
@@ -202,22 +266,46 @@ export default function PropertyDetailsScreen({ route, navigation }: any) {
             <View style={styles.conciergeActions}>
               <TouchableOpacity 
                 style={styles.conciergeBtn}
-                onPress={() => navigation.navigate('Inbox', {
-                  screen: 'ChatDetail',
-                  params: { 
-                    property, 
-                    otherUser: { 
-                      id: property.agent_id, 
-                      full_name: property.agent?.full_name || 'Marcus Sterling', 
-                      avatar_url: property.agent?.avatar_url || 'https://i.pravatar.cc/150?u=agent' 
-                    } 
+                onPress={() => {
+                  const brokerId = property.agent_id || property.user_id;
+                  if (!brokerId) {
+                    setAlertConfig({ visible: true, title: 'Unavailable', message: 'Broker contact is not available for this listing.' });
+                    return;
                   }
-                })}
+                  if (brokerId === user?.id) {
+                    setAlertConfig({ visible: true, title: 'Notice', message: 'You are the owner of this listing.' });
+                    return;
+                  }
+                  navigation.navigate('Tabs', {
+                    screen: 'Inbox',
+                    params: {
+                      screen: 'ChatDetail',
+                      params: { 
+                        property, 
+                        otherUser: { 
+                          id: brokerId, 
+                          full_name: property.broker_name || property.agent?.full_name || 'Broker', 
+                          avatar_url: property.broker_image || property.agent?.avatar_url || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80'
+                        } 
+                      }
+                    }
+                  });
+                }}
               >
                 <MessageCircle color="white" size={20} />
                 <Text style={styles.conciergeBtnText}>Message</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.conciergeBtn, styles.callBtn]}>
+              <TouchableOpacity 
+                style={[styles.conciergeBtn, styles.callBtn]}
+                onPress={() => {
+                  const phone = property.broker_phone || property.agent?.phone;
+                  if (phone) {
+                    Linking.openURL(`tel:${phone}`);
+                  } else {
+                    setAlertConfig({ visible: true, title: 'Unavailable', message: 'No contact number is available for this builder/broker.' });
+                  }
+                }}
+              >
                 <PhoneCall color={GOLD} size={20} />
               </TouchableOpacity>
             </View>
@@ -271,6 +359,19 @@ export default function PropertyDetailsScreen({ route, navigation }: any) {
                 <Text style={styles.microPrice}>${Number(property.price).toLocaleString()}</Text>
               </View>
 
+              {/* Offer Amount Selection */}
+              <View style={styles.bookingSection}>
+                <Text style={styles.bookingSectionTitle}>Your Bid / Offer Amount ($)</Text>
+                <TextInput
+                  style={styles.offerInput}
+                  placeholder="Enter your offer amount"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  keyboardType="numeric"
+                  value={offerAmount}
+                  onChangeText={setOfferAmount}
+                />
+              </View>
+
               {/* Date Selection */}
               <View style={styles.bookingSection}>
                 <Text style={styles.bookingSectionTitle}>Select Date</Text>
@@ -318,15 +419,35 @@ export default function PropertyDetailsScreen({ route, navigation }: any) {
               
               <TouchableOpacity 
                 style={styles.finalConfirmBtn}
-                onPress={() => {
+                onPress={async () => {
                   setShowBookingModal(false);
+                  
+                  if (!user) {
+                     setTimeout(() => showLuxuryAlert('Authentication Required', 'Please sign in to make an offer/booking.'), 500);
+                     return;
+                  }
+                  
+                  const { error } = await supabase.from('bookings').insert([{
+                     property_id: property.id,
+                     buyer_id: user.id,
+                     agent_id: property.agent_id || property.user_id,
+                     booking_date: selectedDate.toISOString(),
+                     status: 'pending',
+                     notes: JSON.stringify({ offer_amount: Number(offerAmount) || Number(property.price) })
+                  }]);
+
                   setTimeout(() => {
-                    showLuxuryAlert('Request Received', 'Your elite concierge will contact you shortly to finalize your viewing.');
+                    if (error) {
+                       console.error('Booking Insert Error:', error);
+                       showLuxuryAlert('Request Failed', error.message || 'Could not process your request.');
+                    } else {
+                       showLuxuryAlert('Offer Submitted', 'Your offer has been submitted! The admin will review it shortly.');
+                    }
                   }, 500);
                 }}
               >
                 <LinearGradient colors={GOLD_GRADIENT} style={styles.gradientBtn}>
-                  <Text style={styles.finalConfirmText}>Confirm VIP Request</Text>
+                  <Text style={styles.finalConfirmText}>Make Offer / Book</Text>
                   <ArrowRight size={20} color="black" />
                 </LinearGradient>
               </TouchableOpacity>
@@ -517,12 +638,14 @@ const styles = StyleSheet.create({
   },
   specCard: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#111',
-    padding: 15,
+    paddingVertical: 18,
+    paddingHorizontal: 8,
     borderRadius: 20,
-    gap: 12,
+    gap: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
   },
@@ -937,5 +1060,17 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  offerInput: {
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    height: 54,
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 10,
   }
 });

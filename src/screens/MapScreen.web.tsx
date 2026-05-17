@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Theme } from '../styles/theme';
 import { ChevronLeft, Map } from 'lucide-react-native';
 
+const GOLD = '#D4AF37';
+
 // Web placeholder — react-native-maps is native-only.
 // Metro automatically picks this file for web builds via .web.tsx extension.
 export default function MapScreen({ navigation }: any) {
@@ -14,11 +16,11 @@ export default function MapScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
       <View style={styles.content}>
-        <Map color={Theme.colors.primary} size={64} />
-        <Text style={styles.title}>Map View</Text>
+        <Map color={GOLD} size={64} />
+        <Text style={styles.title}>Explore the Map</Text>
         <Text style={styles.subtitle}>
           Interactive maps are available on the mobile app.{'\n'}
-          Download Expo Go and scan the QR code to explore on Android or iOS.
+          Download Expo Go to see homes near you on the map.
         </Text>
       </View>
     </View>

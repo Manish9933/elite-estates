@@ -39,7 +39,10 @@ create table properties (
   virtual_tour_url text,
   agent_id uuid references profiles(id) on delete cascade not null,
   status property_status default 'under_review',
-  is_featured boolean default false
+  is_featured boolean default false,
+  broker_name text,
+  broker_image text,
+  broker_phone text
 );
 
 -- Bookings / Tours Table

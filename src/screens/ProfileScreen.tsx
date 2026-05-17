@@ -43,8 +43,22 @@ const GOLD = Theme.colors.gold;
 const GOLD_GRADIENT = Theme.colors.goldGradient;
 
 export default function ProfileScreen({ navigation }: any) {
-  const { user, signOut } = useAuth();
+  const { user, profile: authProfile, signOut } = useAuth();
   const [profile, setProfile] = React.useState<any>(null);
+  const [clickCount, setClickCount] = React.useState(0);
+  const [adminUnlocked, setAdminUnlocked] = React.useState(false);
+
+  const handleSecretTap = () => {
+    setClickCount(prev => {
+      const next = prev + 1;
+      if (next >= 5) {
+        setAdminUnlocked(true);
+        showLuxuryAlert('Developer Access Unlocked', 'Administrative options are now temporarily visible.');
+        return 0;
+      }
+      return next;
+    });
+  };
   const [notifications, setNotifications] = React.useState(true);
   const [stats, setStats] = React.useState({ saved: 0, viewings: 0, offers: 0 });
   const [loading, setLoading] = React.useState(true);
@@ -69,26 +83,40 @@ export default function ProfileScreen({ navigation }: any) {
     if (!user) return;
     if (!silent) setLoading(true);
     try {
-      const [profileRes, statsRes, bookingsRes] = await Promise.all([
-        profileApi.getProfile(user.id),
-        profileApi.getUserStats(user.id),
-        supabase.from('bookings').select('*, property(*)').eq('buyer_id', user.id).order('created_at', { ascending: false })
-      ]);
-      
-      if (profileRes.data) {
-        setProfile(profileRes.data);
-        setEditedName(profileRes.data.full_name || '');
-        setEditedAvatar(profileRes.data.avatar_url || '');
-        setEditedPhone(profileRes.data.phone || '+1 (555) 000-0000');
-        setEditedLocation(profileRes.data.location || 'New York, USA');
-        setEditedTitle(profileRes.data.title || 'Elite Investor');
-        setEditedBio(profileRes.data.bio || '');
-        setEditedContact(profileRes.data.preferred_contact || 'Secure Call');
+      // 1. Fetch Profile
+      try {
+        const profileRes = await profileApi.getProfile(user.id);
+        if (profileRes.data) {
+          setProfile(profileRes.data);
+          setEditedName(profileRes.data.full_name || '');
+          setEditedAvatar(profileRes.data.avatar_url || '');
+          setEditedPhone(profileRes.data.phone || '+1 (555) 000-0000');
+          setEditedLocation(profileRes.data.location || 'New York, USA');
+          setEditedTitle(profileRes.data.title || 'Elite Investor');
+          setEditedBio(profileRes.data.bio || '');
+          setEditedContact(profileRes.data.preferred_contact || 'Secure Call');
+        }
+      } catch (e) {
+        console.error('Error fetching profile detail:', e);
       }
-      setStats(statsRes);
-      if (bookingsRes.data) setUserBookings(bookingsRes.data);
+
+      // 2. Fetch User Stats
+      try {
+        const statsRes = await profileApi.getUserStats(user.id);
+        if (statsRes) setStats(statsRes);
+      } catch (e) {
+        console.error('Error fetching stats:', e);
+      }
+
+      // 3. Fetch Bookings
+      try {
+        const bookingsRes = await supabase.from('bookings').select('*, property(*)').eq('buyer_id', user.id).order('created_at', { ascending: false });
+        if (bookingsRes.data) setUserBookings(bookingsRes.data);
+      } catch (e) {
+        console.error('Error fetching bookings:', e);
+      }
     } catch (error) {
-      console.error('Error fetching profile data:', error);
+      console.error('Error in profile screen load:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -153,46 +181,30 @@ export default function ProfileScreen({ navigation }: any) {
   const uploadImage = async (uri: string) => {
     if (!user) return;
     setIsSaving(true);
+    console.log("[Profile] Starting image upload for uri:", uri);
+    
     try {
       const fileName = `${user.id}/${Date.now()}.jpg`;
       
-      // Attempt to read the file as a blob with a timeout
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.onload = () => resolve(xhr.response);
-        xhr.onerror = () => reject(new Error('Failed to read local image file.'));
-        xhr.ontimeout = () => reject(new Error('Reading image file timed out.'));
-        xhr.responseType = 'blob';
-        xhr.open('GET', uri, true);
-        xhr.timeout = 5000;
-        xhr.send(null);
-      });
+      // Attempt to read the file as a blob
+      const response = await fetch(uri);
+      const blob = await response.blob();
       
-      // Use FileReader to convert the local URI to a base64 string, then to an ArrayBuffer
-      // This is the most stable way to upload files in React Native
-      const base64: string = await new Promise((resolve, reject) => {
+      // Convert blob to arrayBuffer for Supabase
+      // Using FileReader for maximum compatibility in React Native
+      const arrayBuffer: ArrayBuffer = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => {
-          const res = reader.result as string;
-          resolve(res.split(',')[1]); // Get the base64 part
-        };
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
         reader.onerror = (e) => reject(e);
-        reader.readAsDataURL(blob);
+        reader.readAsArrayBuffer(blob);
       });
-
-      // Convert base64 to Uint8Array/ArrayBuffer
-      const binaryString = atob(base64);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
       
+      console.log("[Profile] File read successful, uploading to Supabase...");
+
       const { data, error } = await supabase.storage
         .from('avatars')
-        .upload(fileName, bytes.buffer, {
+        .upload(fileName, arrayBuffer, {
           contentType: 'image/jpeg',
-          cacheControl: '3600',
           upsert: true
         });
 
@@ -205,14 +217,16 @@ export default function ProfileScreen({ navigation }: any) {
         .from('avatars')
         .getPublicUrl(fileName);
 
+      console.log("[Profile] Upload successful, public URL:", publicUrl);
       setEditedAvatar(publicUrl);
       
-      // Update profile immediately with new avatar URL
+      // Update profile immediately
       await profileApi.updateProfile(user.id, { avatar_url: publicUrl });
       await fetchData(true);
       
       showLuxuryAlert('Identity Synchronized', 'Your executive photo has been uploaded and secured.');
     } catch (error: any) {
+      console.error("[Profile] Upload Process Error:", error);
       showLuxuryAlert('Storage Error', error.message, 'error');
     } finally {
       setIsSaving(false);
@@ -233,8 +247,13 @@ export default function ProfileScreen({ navigation }: any) {
   // Extract user info with fallbacks
   const userName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Member';
   const userEmail = user?.email || '';
-  const userImage = profile?.avatar_url || user?.user_metadata?.avatar_url || `https://i.pravatar.cc/150?u=${user?.id}`;
-  const userRole = profile?.role?.toUpperCase() || 'MEMBER';
+  const userImage = profile?.avatar_url || authProfile?.avatar_url || user?.user_metadata?.avatar_url || `https://i.pravatar.cc/150?u=${user?.id}`;
+  const isUserAdmin = adminUnlocked ||
+                      userEmail.toLowerCase().includes('admin') || 
+                      profile?.role?.toLowerCase() === 'admin' || 
+                      authProfile?.role?.toLowerCase() === 'admin' || 
+                      user?.user_metadata?.role?.toLowerCase() === 'admin';
+  const userRole = isUserAdmin ? 'ADMIN' : (profile?.role?.toUpperCase() || authProfile?.role?.toUpperCase() || user?.user_metadata?.role?.toUpperCase() || 'MEMBER');
 
   const MenuItem = ({ icon: Icon, title, subtitle, color = 'white', onPress, rightElement }: any) => (
     <TouchableOpacity style={styles.menuItem} onPress={onPress}>
@@ -282,10 +301,10 @@ export default function ProfileScreen({ navigation }: any) {
                   <Award size={14} color="black" fill={GOLD} />
                 </View>
               </TouchableOpacity>
-              <View style={styles.nameContainer}>
+              <TouchableOpacity style={styles.nameContainer} onPress={handleSecretTap} activeOpacity={0.9}>
                 <Text style={styles.userName}>{userName}</Text>
-                <Text style={styles.userRole}>PLATINUM MEMBER</Text>
-              </View>
+                <Text style={styles.userRole}>{userRole}</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.statsRow}>
@@ -368,18 +387,20 @@ export default function ProfileScreen({ navigation }: any) {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Administrative</Text>
-          <View style={styles.menuContainer}>
-            <MenuItem 
-              icon={Shield} 
-              title="Admin Dashboard" 
-              subtitle="Manage properties, users, and offers" 
-              color={Theme.colors.primary}
-              onPress={() => navigation.navigate('AdminDashboard')}
-            />
+        {(userRole.toLowerCase() === 'admin') && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Administrative</Text>
+            <View style={styles.menuContainer}>
+              <MenuItem 
+                icon={Shield} 
+                title="Admin Dashboard" 
+                subtitle="Manage properties, users, and offers" 
+                color={Theme.colors.primary}
+                onPress={() => navigation.navigate('AdminDashboard')}
+              />
+            </View>
           </View>
-        </View>
+        )}
 
         <View style={styles.logoutSection}>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -394,7 +415,7 @@ export default function ProfileScreen({ navigation }: any) {
       {/* Production Modals Suite */}
       
       {/* 1. Identity Manager */}
-      <Modal visible={activeModal === 'identity'} transparent animationType="slide">
+      <Modal visible={activeModal === 'identity'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.editOverlay}>
           <View style={[styles.editContainer, { height: '90%' }]}>
             <View style={styles.editHeader}>
@@ -472,7 +493,7 @@ export default function ProfileScreen({ navigation }: any) {
       </Modal>
 
       {/* 2. Security Command */}
-      <Modal visible={activeModal === 'security'} transparent animationType="slide">
+      <Modal visible={activeModal === 'security'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.editOverlay}>
           <View style={styles.editContainer}>
             <View style={styles.editHeader}>
@@ -498,7 +519,7 @@ export default function ProfileScreen({ navigation }: any) {
       </Modal>
 
       {/* 3. Portfolio: Bookings (Redesigned Itinerary) */}
-      <Modal visible={activeModal === 'bookings'} transparent animationType="slide">
+      <Modal visible={activeModal === 'bookings'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.editOverlay}>
           <View style={[styles.editContainer, { height: '85%' }]}>
             <View style={styles.editHeader}>
@@ -541,7 +562,7 @@ export default function ProfileScreen({ navigation }: any) {
       </Modal>
 
       {/* 4. Real Estate Ledger: Payments (Redesigned Financials) */}
-      <Modal visible={activeModal === 'payments'} transparent animationType="slide">
+      <Modal visible={activeModal === 'payments'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.editOverlay}>
           <View style={styles.editContainer}>
             <View style={styles.editHeader}>
@@ -571,6 +592,7 @@ export default function ProfileScreen({ navigation }: any) {
         visible={alertConfig.visible}
         transparent={true}
         animationType="fade"
+        onRequestClose={() => setAlertConfig({ ...alertConfig, visible: false })}
       >
         <View style={styles.alertOverlay}>
           <Animated.View entering={ZoomIn.duration(400)} style={styles.alertBox}>

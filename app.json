@@ -26,7 +26,8 @@
         "googleMaps": {
           "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
         }
-      }
+      },
+      "package": "com.manish_kangra.eliteestates"
     },
     "web": {
       "favicon": "./assets/favicon.png",
