@@ -12,6 +12,7 @@ import ChatDetailScreen from './src/screens/ChatDetailScreen';
 import AuthScreen from './src/screens/AuthScreen';
 import SavedScreen from './src/screens/SavedScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import LoadingScreen from './src/screens/LoadingScreen';
 import AdminDashboard from './admin/DashboardScreen';
 import { Theme } from './src/styles/theme';
 import { View, Text, Platform, TouchableOpacity, Dimensions, ActivityIndicator, Animated } from 'react-native';
@@ -214,11 +215,7 @@ const MainStack = () => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#D4AF37" />
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   return (

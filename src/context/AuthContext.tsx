@@ -21,8 +21,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let initialLoadComplete = false;
+
     // Check for initial session
     const initializeAuth = async () => {
+      const startTime = Date.now();
       try {
         const { data: { session: initialSession } } = await authApi.getSession();
         setSession(initialSession);
@@ -40,7 +43,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch (error) {
         console.error('Error initializing auth:', error);
       } finally {
-        setLoading(false);
+        const elapsedTime = Date.now() - startTime;
+        const minimumDelay = 3000; // Enforce a 3-second display for the luxury loading experience
+        const remainingTime = Math.max(0, minimumDelay - elapsedTime);
+
+        setTimeout(() => {
+          initialLoadComplete = true;
+          setLoading(false);
+        }, remainingTime);
       }
     };
 
@@ -62,7 +72,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
         setProfile(null);
       }
-      setLoading(false);
+      
+      if (initialLoadComplete) {
+        setLoading(false);
+      }
     });
 
     return () => {
