@@ -297,6 +297,33 @@ export default function HomeScreen({ navigation }: any) {
     );
   }
 
+  // Dynamic filtering for search queries
+  const filteredTrending = trendingProperties.filter((p: any) => 
+    p.title.toLowerCase().includes(search.toLowerCase()) || 
+    p.address.toLowerCase().includes(search.toLowerCase()) ||
+    p.city.toLowerCase().includes(search.toLowerCase()) ||
+    (p.property_type && p.property_type.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const filteredFeatured = featuredProperties.filter((p: any) => 
+    p.title.toLowerCase().includes(search.toLowerCase()) || 
+    p.address.toLowerCase().includes(search.toLowerCase()) ||
+    p.city.toLowerCase().includes(search.toLowerCase()) ||
+    (p.property_type && p.property_type.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const filteredNearby = nearbyProperties.filter((p: any) => 
+    p.title.toLowerCase().includes(search.toLowerCase()) || 
+    p.address.toLowerCase().includes(search.toLowerCase()) ||
+    p.city.toLowerCase().includes(search.toLowerCase()) ||
+    (p.property_type && p.property_type.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const showNoResults = search !== '' && 
+    filteredTrending.length === 0 && 
+    filteredFeatured.length === 0 && 
+    filteredNearby.length === 0;
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -352,9 +379,11 @@ export default function HomeScreen({ navigation }: any) {
                     style={styles.searchInput}
                     value={search}
                     onChangeText={setSearch}
+                    onSubmitEditing={() => navigation.navigate('Explore', { query: search })}
+                    returnKeyType="search"
                   />
-                  <TouchableOpacity style={styles.filterBtn} onPress={() => navigation.navigate('Explore')}>
-                    <LucideIcons.Filter color="black" size={18} />
+                  <TouchableOpacity style={styles.filterBtn} onPress={() => navigation.navigate('Explore', { query: search, openFilter: true })}>
+                    <LucideIcons.Filter color={GOLD} size={18} />
                   </TouchableOpacity>
                 </Animated.View>
               </View>
@@ -416,7 +445,7 @@ export default function HomeScreen({ navigation }: any) {
         </View>
 
         {/* Trending Section - LUXURIOUS */}
-        {trendingProperties.length > 0 && (
+        {filteredTrending.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View>
@@ -430,7 +459,7 @@ export default function HomeScreen({ navigation }: any) {
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendingList}>
-              {trendingProperties.map((prop, index) => (
+              {filteredTrending.map((prop, index) => (
                 <Animated.View
                   key={`trending-${prop.id}`}
                   entering={FadeInRight.delay(Math.min(index * 50, 250)).duration(800).springify()}
@@ -487,7 +516,7 @@ export default function HomeScreen({ navigation }: any) {
         )}
 
         {/* Handpicked Section */}
-        {featuredProperties.length > 0 && (
+        {filteredFeatured.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Featured Properties</Text>
@@ -505,7 +534,7 @@ export default function HomeScreen({ navigation }: any) {
                 isWeb && width >= 800 && styles.featuredGrid
               ]}
             >
-              {featuredProperties.map((prop, index) => (
+              {filteredFeatured.map((prop, index) => (
                 <Animated.View
                   key={prop.id}
                   entering={FadeInDown.delay(Math.min(index * 50, 250)).springify()}
@@ -575,29 +604,31 @@ export default function HomeScreen({ navigation }: any) {
         )}
 
         {/* Map Experience */}
-        <Animated.View entering={ZoomIn.delay(800)} style={styles.mapBanner}>
-          <ImageBackground
-            source={{ uri: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1200&q=80' }}
-            style={styles.mapBannerBg}
-            imageStyle={{ borderRadius: 28 }}
-          >
-            <BlurView intensity={25} style={styles.mapBannerContent}>
-              <View style={styles.mapIconCircle}>
-                <LucideIcons.Map size={24} color="black" />
-              </View>
-              <View style={styles.mapTextContainer}>
-                <Text style={styles.mapBannerTitle}>Interactive Map</Text>
-                <Text style={styles.mapBannerSub}>Find homes near you on the map</Text>
-              </View>
-              <TouchableOpacity style={styles.mapGoBtn} onPress={() => navigation.navigate('Explore')}>
-                <Text style={styles.mapGoText}>Enter</Text>
-              </TouchableOpacity>
-            </BlurView>
-          </ImageBackground>
-        </Animated.View>
+        {!showNoResults && (
+          <Animated.View entering={ZoomIn.delay(800)} style={styles.mapBanner}>
+            <ImageBackground
+              source={{ uri: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1200&q=80' }}
+              style={styles.mapBannerBg}
+              imageStyle={{ borderRadius: 28 }}
+            >
+              <BlurView intensity={25} style={styles.mapBannerContent}>
+                <View style={styles.mapIconCircle}>
+                  <LucideIcons.Map size={24} color="black" />
+                </View>
+                <View style={styles.mapTextContainer}>
+                  <Text style={styles.mapBannerTitle}>Interactive Map</Text>
+                  <Text style={styles.mapBannerSub}>Find homes near you on the map</Text>
+                </View>
+                <TouchableOpacity style={styles.mapGoBtn} onPress={() => navigation.navigate('Explore')}>
+                  <Text style={styles.mapGoText}>Enter</Text>
+                </TouchableOpacity>
+              </BlurView>
+            </ImageBackground>
+          </Animated.View>
+        )}
 
         {/* Masterpieces Section */}
-        {nearbyProperties.length > 0 && (
+        {filteredNearby.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View>
@@ -614,7 +645,7 @@ export default function HomeScreen({ navigation }: any) {
               styles.featuredList,
               styles.featuredGrid
             ]}>
-              {nearbyProperties.map((prop, index) => (
+              {filteredNearby.map((prop, index) => (
                 <Animated.View
                   key={prop.id}
                   entering={FadeInDown.delay(Math.min(index * 50, 250)).springify()}
@@ -661,6 +692,16 @@ export default function HomeScreen({ navigation }: any) {
               ))}
             </View>
           </View>
+        )}
+
+        {showNoResults && (
+          <Animated.View entering={FadeInUp.duration(600)} style={styles.noResultsContainer}>
+            <LucideIcons.Search size={48} color="rgba(255, 255, 255, 0.2)" style={{ marginBottom: 15 }} />
+            <Text style={styles.noResultsTitle}>No Masterpieces Found</Text>
+            <Text style={styles.noResultsText}>
+              We couldn't find any properties matching "{search}".
+            </Text>
+          </Animated.View>
         )}
 
       </ScrollView>
@@ -861,7 +902,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#050505',
   },
   scrollContent: {
-    paddingBottom: 100,
+    flexGrow: 1, // Let scroll content fill available space to prevent black gaps
+    paddingBottom: 30, // Reduced from 100 to remove the unwanted black bottom gap
     maxWidth: isWeb ? 1400 : '100%',
     alignSelf: 'center',
     width: '100%',
@@ -984,17 +1026,14 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   filterBtn: {
-    backgroundColor: GOLD,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     width: 48,
     height: 48,
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: GOLD,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   statsBar: {
     marginTop: -30,
@@ -1514,5 +1553,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(212, 175, 55, 0.2)',
+  },
+  noResultsContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 40,
+    marginBottom: 40,
+    backgroundColor: '#0D0D0D',
+    borderRadius: 28,
+    marginHorizontal: 25,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  noResultsTitle: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 15,
+    marginBottom: 8,
+  },
+  noResultsText: {
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 25,
+    paddingHorizontal: 20,
+  },
+  clearSearchBtn: {
+    backgroundColor: GOLD,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  clearSearchBtnText: {
+    color: 'black',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });

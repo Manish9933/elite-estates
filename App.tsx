@@ -18,6 +18,7 @@ import { Theme } from './src/styles/theme';
 import { View, Text, Platform, TouchableOpacity, Dimensions, ActivityIndicator, Animated } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -98,7 +99,7 @@ const WebNavbar = ({ navigation, route: currentRoute }: any) => {
   );
 };
 
-const PulseLine = () => {
+const PulseLine = ({ bottom }: { bottom: number }) => {
   const scaleAnim = React.useRef(new Animated.Value(0)).current;
   const opacityAnim = React.useRef(new Animated.Value(1)).current;
 
@@ -134,7 +135,7 @@ const PulseLine = () => {
   return (
     <View style={{
       position: 'absolute',
-      bottom: Platform.OS === 'ios' ? 30 : 35, // Moved slightly upside to sit right under tab options!
+      bottom: bottom, // Positioned dynamically based on safe area inset
       left: 0,
       right: 0,
       height: 2,
@@ -160,6 +161,12 @@ const TabNavigator = () => {
   const { width } = Dimensions.get('window');
   const isLargeScreen = width > 800;
   const isWeb = Platform.OS === 'web';
+  const insets = useSafeAreaInsets();
+
+  // Dynamic bottom inset to clear Android system navigation keys or gesture bars
+  const bottomInset = insets.bottom;
+  // Dynamic tab height: taller on safe-area gesture devices, standard & tight on system key devices
+  const tabHeight = Platform.OS === 'ios' ? (60 + insets.bottom) : (bottomInset > 0 ? (70 + bottomInset) : 68);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#050505' }}>
@@ -171,9 +178,9 @@ const TabNavigator = () => {
             backgroundColor: '#0D0D0D',
             borderTopWidth: 1,
             borderTopColor: 'rgba(255,255,255,0.08)',
-            height: Platform.OS === 'ios' ? 88 : 95,
-            paddingBottom: Platform.OS === 'ios' ? 30 : 35,
-            paddingTop: 10,
+            height: tabHeight,
+            paddingBottom: bottomInset > 0 ? (bottomInset + 4) : 4,
+            paddingTop: bottomInset > 0 ? 10 : 12,
             display: isWeb && isLargeScreen ? 'none' : 'flex',
             elevation: 8,
             shadowColor: '#000',
@@ -185,12 +192,12 @@ const TabNavigator = () => {
           tabBarInactiveTintColor: 'rgba(255,255,255,0.4)',
           tabBarShowLabel: true,
           tabBarLabelStyle: {
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: '700',
-            marginBottom: Platform.OS === 'android' ? 2 : 0,
+            marginBottom: Platform.OS === 'android' ? (bottomInset > 0 ? 6 : 2) : 2,
           },
           tabBarIcon: ({ color }) => {
-            const size = 24;
+            const size = 27; // Increased icon size from 24 to 27 for better visibility
             if (route.name === 'Home') return <Home color={color} size={size} strokeWidth={2} />;
             if (route.name === 'Explore') return <Search color={color} size={size} strokeWidth={2} />;
             if (route.name === 'Saved') return <Heart color={color} size={size} strokeWidth={2} />;
@@ -206,7 +213,7 @@ const TabNavigator = () => {
         <Tab.Screen name="Inbox" component={ChatStack} />
         <Tab.Screen name="Profile" component={ProfileScreen} />
       </Tab.Navigator>
-      {!isLargeScreen && <PulseLine />}
+      {!isLargeScreen && <PulseLine bottom={bottomInset > 0 ? (bottomInset + 6) : 6} />}
     </View>
   );
 };
@@ -240,7 +247,6 @@ export default function App() {
   React.useEffect(() => {
     if (Platform.OS === 'android') {
       SystemUI.setBackgroundColorAsync('#050505');
-      // NavigationBar.setBackgroundColorAsync('#0D0D0D'); // Commented out to prevent edge-to-edge console warning
       NavigationBar.setButtonStyleAsync('light');
     }
   }, []);

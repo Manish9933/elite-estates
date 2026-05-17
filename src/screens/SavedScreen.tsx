@@ -93,7 +93,7 @@ export default function SavedScreen({ navigation }: any) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.title}>Saved Properties</Text>
         <Text style={styles.subtitle}>{favorites.length} architectural masterpieces</Text>
@@ -201,8 +201,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   listContainer: {
+    flexGrow: 1, // Let scroll content fill available space to prevent black gaps
     padding: 25,
-    paddingBottom: 160,
+    paddingBottom: 35, // Reduced from 160 to remove the unwanted black bottom gap
   },
   cardWrapper: {
     marginBottom: 25,
