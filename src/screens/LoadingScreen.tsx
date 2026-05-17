@@ -8,16 +8,21 @@ import {
   Easing,
   StatusBar,
   Platform,
+  ImageBackground,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Sparkles, Building2, Compass, ShieldCheck } from 'lucide-react-native';
-import { Theme } from '../styles/theme';
+import { Sparkles, Building2, Compass, ShieldCheck, Home } from 'lucide-react-native';
+import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 
 const { width, height } = Dimensions.get('window');
 const GOLD = '#D4AF37';
 const GOLD_LIGHT = '#F4D03F';
 const GOLD_DARK = '#B88A44';
+
+// Breathtaking twilight architectural villa background
+const BACKGROUND_VILLA_IMAGE = 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=1200';
 
 const LOADING_STEPS = [
   { text: 'Curating bespoke estates...', icon: Building2 },
@@ -30,66 +35,58 @@ export default function LoadingScreen() {
   const [currentStep, setCurrentStep] = useState(0);
   
   // Animation Values
-  const logoScale = useRef(new Animated.Value(0.9)).current;
-  const logoOpacity = useRef(new Animated.Value(0)).current;
-  const logoGlow = useRef(new Animated.Value(0.3)).current;
+  const cardScale = useRef(new Animated.Value(0.92)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const cardGlow = useRef(new Animated.Value(0.3)).current;
   
   const textOpacity = useRef(new Animated.Value(0)).current;
-  const textTranslateY = useRef(new Animated.Value(10)).current;
-  
-  const progressWidth = useRef(new Animated.Value(0)).current;
-  const shimmerTranslateX = useRef(new Animated.Value(-150)).current;
+  const textTranslateY = useRef(new Animated.Value(8)).current;
   
   const rotation = useRef(new Animated.Value(0)).current;
 
-  // Background architectural grid line animations
-  const gridLine1 = useRef(new Animated.Value(0)).current;
-  const gridLine2 = useRef(new Animated.Value(0)).current;
-  const gridLine3 = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
-    // 1. Logo Entrance Animation
+    // 1. Central Card Entrance Animation
     Animated.parallel([
-      Animated.timing(logoScale, {
+      Animated.timing(cardScale, {
         toValue: 1,
-        duration: 1000,
+        duration: 1100,
         easing: Easing.out(Easing.back(1.5)),
         useNativeDriver: true,
       }),
-      Animated.timing(logoOpacity, {
+      Animated.timing(cardOpacity, {
         toValue: 1,
-        duration: 1000,
+        duration: 900,
         useNativeDriver: true,
       })
     ]).start();
 
-    // 2. Loop Logo Pulse and Glow
+    // 2. Loop Card Pulse and Glow
     Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(logoScale, {
-            toValue: 1.03,
-            duration: 2000,
+          Animated.timing(cardScale, {
+            toValue: 1.02,
+            duration: 2500,
             easing: Easing.inOut(Easing.quad),
             useNativeDriver: true,
           }),
-          Animated.timing(logoGlow, {
+          Animated.timing(cardGlow, {
             toValue: 0.8,
-            duration: 2000,
+            duration: 2500,
             easing: Easing.inOut(Easing.quad),
             useNativeDriver: true,
           })
         ]),
         Animated.parallel([
-          Animated.timing(logoScale, {
+          Animated.timing(cardScale, {
             toValue: 1,
-            duration: 2000,
+            duration: 2500,
             easing: Easing.inOut(Easing.quad),
             useNativeDriver: true,
           }),
-          Animated.timing(logoGlow, {
+          Animated.timing(cardGlow, {
             toValue: 0.3,
-            duration: 2000,
+            duration: 2500,
             easing: Easing.inOut(Easing.quad),
             useNativeDriver: true,
           })
@@ -97,29 +94,7 @@ export default function LoadingScreen() {
       ])
     ).start();
 
-    // 3. Grid line draw-in animations
-    Animated.stagger(300, [
-      Animated.timing(gridLine1, {
-        toValue: 1,
-        duration: 2000,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: false,
-      }),
-      Animated.timing(gridLine2, {
-        toValue: 1,
-        duration: 2500,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: false,
-      }),
-      Animated.timing(gridLine3, {
-        toValue: 1,
-        duration: 3000,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: false,
-      })
-    ]).start();
-
-    // 4. Loading Text Rotator & Shimmer progress
+    // 3. Loading Text Rotator (Fading slide-up exactly like GOSAI)
     let stepTimer: any;
     const animateTextTransition = (nextIndex: number) => {
       // Fade out
@@ -164,34 +139,17 @@ export default function LoadingScreen() {
         setCurrentStep((prev) => {
           const next = (prev + 1) % LOADING_STEPS.length;
           animateTextTransition(next);
-          return prev; // Handled by callback for smooth transitions
+          return prev;
         });
       }, 3500);
     };
     stepInterval();
 
-    // 5. Progress & Shimmer Bar Animations
-    Animated.timing(progressWidth, {
-      toValue: 1,
-      duration: 10000,
-      easing: Easing.inOut(Easing.quad),
-      useNativeDriver: false,
-    }).start();
-
-    Animated.loop(
-      Animated.timing(shimmerTranslateX, {
-        toValue: 150,
-        duration: 1500,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    // 6. Smooth spinner rotation
+    // 4. Smooth spinner rotation
     Animated.loop(
       Animated.timing(rotation, {
         toValue: 1,
-        duration: 3000,
+        duration: 2200,
         easing: Easing.linear,
         useNativeDriver: true,
       })
@@ -210,90 +168,120 @@ export default function LoadingScreen() {
   const ActiveIcon = LOADING_STEPS[currentStep].icon;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FCFBF9" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       
-      {/* Luxury Off-White & Soft Gold Background Gradient */}
-      <LinearGradient
-        colors={['#FCFBF9', '#FAF7F0', '#F2ECE0']}
+      {/* 1. Breathtaking Villa Background Image */}
+      <ImageBackground
+        source={{ uri: BACKGROUND_VILLA_IMAGE }}
         style={StyleSheet.absoluteFill}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      />
+        resizeMode="cover"
+      >
+        {/* 2. Premium Semi-Transparent Dark Vignette Overlay */}
+        <LinearGradient
+          colors={['rgba(5, 5, 5, 0.4)', 'rgba(5, 5, 5, 0.65)', 'rgba(5, 5, 5, 0.85)']}
+          style={StyleSheet.absoluteFill}
+        />
+      </ImageBackground>
 
-      {/* Modern Architectural Drafting Lines (Floorplan style background) */}
-      <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-        <Animated.View 
-          style={[
-            styles.architecturalLine, 
-            styles.hLine1, 
-            { width: gridLine1.interpolate({ inputRange: [0, 1], outputRange: ['0%', '80%'] }) }
-          ]} 
-        />
-        <Animated.View 
-          style={[
-            styles.architecturalLine, 
-            styles.hLine2, 
-            { width: gridLine2.interpolate({ inputRange: [0, 1], outputRange: ['0%', '65%'] }) }
-          ]} 
-        />
-        <Animated.View 
-          style={[
-            styles.architecturalLine, 
-            styles.vLine1, 
-            { height: gridLine3.interpolate({ inputRange: [0, 1], outputRange: ['0%', '40%'] }) }
-          ]} 
-        />
-        
-        {/* Soft Golden Background Glow Spheres */}
-        <View style={styles.glowSphere1} />
-        <View style={styles.glowSphere2} />
-      </View>
-
-      <View style={styles.contentContainer}>
-        {/* Logo Card Section */}
-        <Animated.View 
-          style={[
-            styles.logoContainer, 
-            { 
-              transform: [{ scale: logoScale }],
-              opacity: logoOpacity,
-              shadowOpacity: logoGlow.interpolate({ inputRange: [0.3, 0.8], outputRange: [0.15, 0.3] }),
-              shadowRadius: logoGlow.interpolate({ inputRange: [0.3, 0.8], outputRange: [15, 25] }),
-            }
-          ]}
-        >
-          {/* Replica of the Premium Blue/Gold App Icon from screenshot */}
-          <LinearGradient
-            colors={['#0F1E36', '#050D1A']}
-            style={styles.logoGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.contentContainer}>
+          
+          {/* 3. Glassmorphic Card Container (Matching GOSAI shape) */}
+          <Animated.View 
+            style={[
+              styles.cardShadowWrapper, 
+              { 
+                transform: [{ scale: cardScale }],
+                opacity: cardOpacity,
+              }
+            ]}
           >
-            {/* Elegant Golden House Icon Structure */}
-            <View style={styles.houseIconWrapper}>
-              <View style={styles.roofLeft} />
-              <View style={styles.roofRight} />
-              <View style={styles.chimney} />
-              <View style={styles.houseBody}>
-                <View style={styles.houseWindowLeft} />
-                <View style={styles.houseWindowRight} />
-                <View style={styles.houseDoor} />
+            {/* 100% crash-proof luxury glassmorphic card clipped inside outer shadow */}
+            <View style={styles.cardClippingWrapper}>
+              <View style={styles.blurCard}>
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.03)']}
+                  style={styles.cardGradientBorder}
+                >
+                  
+                  {/* Custom Luxury Monogram "E" Logo Mark */}
+                  <View style={styles.houseIconWrapper}>
+                    <Svg width="160" height="160" viewBox="0 0 150 150">
+                      <Defs>
+                        <SvgLinearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <Stop offset="0%" stopColor="#FFF2A3" />
+                          <Stop offset="30%" stopColor="#D4AF37" />
+                          <Stop offset="70%" stopColor="#B88A44" />
+                          <Stop offset="100%" stopColor="#D4AF37" />
+                        </SvgLinearGradient>
+                      </Defs>
+                      
+                      {/* Decorative Monogram Outer Frame */}
+                      <Path
+                        d="M 32 18 H 118 A 14 14 0 0 1 132 32 V 118 A 14 14 0 0 1 118 132 H 32 A 14 14 0 0 1 18 118 V 32 A 14 14 0 0 1 32 18 Z"
+                        stroke="url(#goldGradient)"
+                        strokeWidth="1.2"
+                        fill="none"
+                      />
+                      {/* Inner Corner Accent Brackets */}
+                      <Path
+                        d="M 36 28 H 28 V 36 M 114 28 H 122 V 36 M 36 122 H 28 V 114 M 114 122 H 122 V 114"
+                        stroke="url(#goldGradient)"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        fill="none"
+                      />
+
+                      {/* Classic Luxury Serif "E" */}
+                      <SvgText
+                        x="75"
+                        y="102"
+                        fontSize="78"
+                        fontFamily={Platform.OS === 'ios' ? 'Georgia' : 'serif'}
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        fill="url(#goldGradient)"
+                      >
+                        E
+                      </SvgText>
+
+                      {/* Elegant House Roof Contour overlapping the upper serif bar of the E */}
+                      <Path
+                        d="M 42 42 L 75 19 L 108 42"
+                        stroke="url(#goldGradient)"
+                        strokeWidth="3.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                      />
+                      {/* Chimney Accent */}
+                      <Path
+                        d="M 92 24 V 30"
+                        stroke="url(#goldGradient)"
+                        strokeWidth="3.2"
+                        strokeLinecap="round"
+                        fill="none"
+                      />
+                    </Svg>
+                  </View>
+
+                </LinearGradient>
               </View>
-              <View style={styles.houseBase} />
             </View>
-          </LinearGradient>
-        </Animated.View>
+          </Animated.View>
 
-        {/* Brand Typography */}
-        <Animated.View style={[styles.brandWrapper, { opacity: logoOpacity }]}>
-          <Text style={styles.brandTitle}>
-            ELITE <Text style={styles.brandTitleGold}>ESTATES</Text>
-          </Text>
-          <Text style={styles.brandSubtitle}>CONCIERGE PORTFOLIO</Text>
-        </Animated.View>
+          {/* 5. Brand Typography - Letter-spaced Serif look */}
+          <Animated.View style={[styles.brandWrapper, { opacity: cardOpacity }]}>
+            <Text style={styles.brandTitle}>
+              ELITE <Text style={styles.brandTitleGold}>ESTATES</Text>
+            </Text>
+            <Text style={styles.brandSubtitle}>CONCIERGE PORTFOLIO</Text>
+          </Animated.View>
 
-        {/* Loading Spinner & Status Steps */}
+        </View>
+
+        {/* 6. Gold Spinner & Dynamic Fading Status Text (Positioned Lower) */}
         <View style={styles.loadingWrapper}>
           <Animated.View style={[styles.spinnerWrapper, { transform: [{ rotate: spin }] }]}>
             <LinearGradient
@@ -305,152 +293,125 @@ export default function LoadingScreen() {
             <View style={styles.spinnerInnerGap} />
           </Animated.View>
 
-          {/* Dynamic Loading Message Transition */}
+          {/* Fading text transition next to spinner */}
           <Animated.View style={[
             styles.stepMessageWrapper, 
-            { opacity: textOpacity, transform: [{ translateY: textTranslateY }] }
+            { 
+              opacity: textOpacity, 
+              transform: [{ translateY: textTranslateY }],
+              flexDirection: 'row',
+              alignItems: 'center',
+            }
           ]}>
             <View style={styles.stepIconBox}>
-              {ActiveIcon && <ActiveIcon color={GOLD} size={15} strokeWidth={2.5} />}
+              {ActiveIcon && <ActiveIcon color={GOLD} size={14} strokeWidth={2.5} />}
             </View>
             <Text style={styles.stepText}>
               {LOADING_STEPS[currentStep].text}
             </Text>
           </Animated.View>
         </View>
-      </View>
 
-      {/* Premium Luxury Progress Bar */}
-      <View style={styles.progressSection}>
-        <View style={styles.progressBarTrack}>
-          <Animated.View 
-            style={[
-              styles.progressBarFill, 
-              { 
-                width: progressWidth.interpolate({ 
-                  inputRange: [0, 1], 
-                  outputRange: ['0%', '100%'] 
-                }) 
-              }
-            ]}
-          >
-            <LinearGradient
-              colors={[GOLD_LIGHT, GOLD, GOLD_DARK]}
-              style={StyleSheet.absoluteFill}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            />
-            {/* Shimmer Effect */}
-            <Animated.View 
-              style={[
-                styles.shimmerLine, 
-                { transform: [{ translateX: shimmerTranslateX }] }
-              ]} 
-            >
-              <LinearGradient
-                colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.6)', 'rgba(255,255,255,0)']}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              />
-            </Animated.View>
-          </Animated.View>
+        {/* Footer Secured Notice */}
+        <View style={styles.footer}>
+          <Text style={styles.securedText}>SECURED PORTAL • SUPABASE INTEGRATED</Text>
         </View>
-        <Text style={styles.securedText}>SECURED PORTAL • SUPABASE INTEGRATED</Text>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#050505',
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: '#FCFBF9',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   contentContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: height * 0.08,
+    paddingTop: height * 0.12,
   },
   
-  // Architectural drafting line decoration (luxury/architecture theme)
-  architecturalLine: {
-    position: 'absolute',
-    backgroundColor: 'rgba(212, 175, 55, 0.06)',
-  },
-  hLine1: {
-    top: height * 0.35,
-    left: 0,
-    height: 1,
-  },
-  hLine2: {
-    top: height * 0.65,
-    right: 0,
-    height: 1.5,
-  },
-  vLine1: {
-    left: width * 0.2,
-    top: height * 0.25,
-    width: 1,
-  },
-  
-  // Luxury background glows
-  glowSphere1: {
-    position: 'absolute',
-    top: height * 0.15,
-    left: width * 0.15,
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: 'rgba(214, 175, 55, 0.04)',
-    filter: Platform.OS === 'ios' ? 'blur(45px)' : undefined,
-  },
-  glowSphere2: {
-    position: 'absolute',
-    bottom: height * 0.2,
-    right: -50,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(184, 138, 68, 0.03)',
-    filter: Platform.OS === 'ios' ? 'blur(50px)' : undefined,
-  },
-
-  // Premium Logo Card replica
-  logoContainer: {
-    width: 150,
-    height: 150,
-    borderRadius: 36,
-    backgroundColor: '#050D1A',
-    padding: 3, // Ring outline spacing
+  // Custom Glassmorphic Card Container matching GOSAI
+  cardShadowWrapper: {
+    width: 200,
+    height: 200,
     shadowColor: GOLD,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 15,
     elevation: 12,
   },
-  logoGradient: {
+  cardClippingWrapper: {
     flex: 1,
-    borderRadius: 33,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
+    borderRadius: 50,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  blurCard: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 20, 30, 0.65)',
+  },
+  cardGradientBorder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+  },
+
+  // Luxury Double Ring Monogram Box
+  innerLogoRing: {
+    width: 156,
+    height: 156,
+    borderRadius: 38,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.18)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 3,
+  },
+  monogramBorderBox: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 35,
+    borderWidth: 1.5,
+    borderColor: GOLD,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(5, 13, 26, 0.35)', // Dark translucent layer behind logo
   },
 
   // High-fidelity gold house drawing matching screenshot
   houseIconWrapper: {
-    width: 80,
-    height: 80,
+    width: 160,
+    height: 160,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  logoImage: {
+    width: 140,
+    height: 140,
+    borderRadius: 32,
+  },
   roofLeft: {
     position: 'absolute',
-    top: 14,
-    left: 8,
-    width: 36,
+    top: 18,
+    left: 10,
+    width: 38,
     height: 4,
     backgroundColor: GOLD,
     borderRadius: 2,
@@ -458,9 +419,9 @@ const styles = StyleSheet.create({
   },
   roofRight: {
     position: 'absolute',
-    top: 14,
-    right: 8,
-    width: 36,
+    top: 18,
+    right: 10,
+    width: 38,
     height: 4,
     backgroundColor: GOLD,
     borderRadius: 2,
@@ -468,18 +429,18 @@ const styles = StyleSheet.create({
   },
   chimney: {
     position: 'absolute',
-    top: 10,
-    left: 20,
-    width: 6,
-    height: 14,
+    top: 12,
+    left: 22,
+    width: 7,
+    height: 15,
     backgroundColor: GOLD,
   },
   houseBody: {
     position: 'absolute',
     bottom: 22,
-    width: 50,
-    height: 30,
-    borderWidth: 3,
+    width: 52,
+    height: 32,
+    borderWidth: 3.5,
     borderColor: GOLD,
     borderTopWidth: 0,
     flexDirection: 'row',
@@ -488,22 +449,22 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   houseWindowLeft: {
-    width: 8,
-    height: 12,
+    width: 9,
+    height: 13,
     borderWidth: 2,
     borderColor: GOLD,
     marginBottom: 4,
   },
   houseWindowRight: {
-    width: 8,
-    height: 12,
+    width: 9,
+    height: 13,
     borderWidth: 2,
     borderColor: GOLD,
     marginBottom: 4,
   },
   houseDoor: {
-    width: 10,
-    height: 16,
+    width: 11,
+    height: 17,
     backgroundColor: GOLD,
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
@@ -511,128 +472,101 @@ const styles = StyleSheet.create({
   houseBase: {
     position: 'absolute',
     bottom: 19,
-    width: 62,
+    width: 66,
     height: 3,
     backgroundColor: GOLD,
     borderRadius: 1.5,
   },
 
-  // Typography Styles
+  // Elegant brand typography below card
   brandWrapper: {
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 32,
   },
   brandTitle: {
-    fontSize: 28,
+    fontSize: 34,
     fontWeight: '900',
-    letterSpacing: 6,
-    color: '#1C1B17',
-    textShadowColor: 'rgba(0,0,0,0.05)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    letterSpacing: 8,
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   brandTitleGold: {
     color: GOLD,
   },
   brandSubtitle: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
     letterSpacing: 5,
-    color: '#8A8578',
-    marginTop: 6,
+    color: 'rgba(255, 255, 255, 0.45)',
+    marginTop: 8,
   },
 
-  // Spinner ring styling
+  // Gold Arc Spinner & Loading Text matching GOSAI layout
   loadingWrapper: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 48,
-    height: 90,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(5, 5, 5, 0.45)',
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    marginBottom: height * 0.05,
+    minWidth: width * 0.7,
   },
   spinnerWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    padding: 3,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    padding: 2.5,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 14,
   },
   spinnerRing: {
     width: '100%',
     height: '100%',
-    borderRadius: 16,
+    borderRadius: 10,
   },
   spinnerInnerGap: {
     position: 'absolute',
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#FAF7F0', // Seamlessly matches mid-gradient bg
+    width: 15,
+    height: 15,
+    borderRadius: 7.5,
+    backgroundColor: '#0F1318', // Matches loading background tint
   },
 
-  // Steps indicator
+  // Steps message text next to spinner
   stepMessageWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.75)',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.12)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    flex: 1,
+  },
+  stepText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   stepIconBox: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(214, 175, 55, 0.08)',
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
-  stepText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4A463B',
-    letterSpacing: 0.3,
-  },
 
-  // Progress Section Styles
-  progressSection: {
-    width: '100%',
-    alignItems: 'center',
-    paddingBottom: height * 0.05,
-    paddingHorizontal: 40,
-  },
-  progressBarTrack: {
-    width: '100%',
-    height: 4,
-    backgroundColor: 'rgba(212, 175, 55, 0.12)',
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  shimmerLine: {
-    width: 150,
-    height: '100%',
-    position: 'absolute',
-    top: 0,
-    left: 0,
+  // Footer styling
+  footer: {
+    paddingBottom: height * 0.03,
   },
   securedText: {
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 2,
-    color: '#A09B8E',
+    color: 'rgba(255, 255, 255, 0.35)',
   },
 });
