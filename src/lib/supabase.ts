@@ -105,12 +105,38 @@ const ExpoSecureStoreAdapter = {
   },
 };
 
-let supabase: ReturnType<typeof createClient>;
+const WebStorageAdapter = {
+  getItem: async (key: string) => {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      return null;
+    }
+  },
+  setItem: async (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      // Ignored
+    }
+  },
+  removeItem: async (key: string) => {
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+      // Ignored
+    }
+  }
+};
+
+const customStorageAdapter = Platform.OS === 'web' ? WebStorageAdapter : ExpoSecureStoreAdapter;
+
+let supabase: any;
 
 try {
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-      storage: ExpoSecureStoreAdapter as any,
+      storage: customStorageAdapter as any,
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
@@ -124,7 +150,7 @@ try {
     supabaseAnonKey || 'placeholder-key',
     {
       auth: {
-        storage: ExpoSecureStoreAdapter as any,
+        storage: customStorageAdapter as any,
         autoRefreshToken: false,
         persistSession: false,
         detectSessionInUrl: false,
