@@ -157,7 +157,7 @@ export default function ProfileScreen({ navigation }: any) {
       
       await fetchData(true);
       setActiveModal(null);
-      showLuxuryAlert('Identity Synchronized', 'Your presence has been successfully updated across the Elite network.');
+      showLuxuryAlert('Profile Updated', 'Your profile changes have been successfully saved.');
     } catch (error: any) {
       showLuxuryAlert('Error', error.message, 'error');
     } finally {
@@ -226,7 +226,7 @@ export default function ProfileScreen({ navigation }: any) {
       await profileApi.updateProfile(user.id, { avatar_url: publicUrl });
       await fetchData(true);
       
-      showLuxuryAlert('Identity Synchronized', 'Your executive photo has been uploaded and secured.');
+      showLuxuryAlert('Photo Uploaded', 'Your profile picture has been successfully uploaded.');
     } catch (error: any) {
       console.error("[Profile] Upload Process Error:", error);
       showLuxuryAlert('Storage Error', error.message, 'error');
@@ -311,7 +311,7 @@ export default function ProfileScreen({ navigation }: any) {
               <View style={styles.statDivider} />
               <TouchableOpacity 
                 style={styles.statItem}
-                onPress={() => showLuxuryAlert('Concierge Update', 'You have ' + stats.viewings + ' private viewings scheduled for this month.')}
+                onPress={() => showLuxuryAlert('Booking Update', 'You have ' + stats.viewings + ' private tours scheduled for this month.')}
               >
                 <Text style={styles.statValue}>{stats.viewings}</Text>
                 <Text style={styles.statLabel}>Viewings</Text>
@@ -400,7 +400,7 @@ export default function ProfileScreen({ navigation }: any) {
             <LogOut size={20} color="#EF4444" />
             <Text style={styles.logoutText}>Secure Logout</Text>
           </TouchableOpacity>
-          <Text style={styles.versionText}>Elite Estates v1.0.4 Premium • Concierge Edition</Text>
+          <Text style={styles.versionText}>Elite Estates v1.0.4 Premium • Prime Edition</Text>
         </View>
       </ScrollView>
       )}

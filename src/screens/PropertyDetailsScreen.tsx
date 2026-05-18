@@ -423,7 +423,7 @@ This architectural masterpiece features ${property.bhk} Bedrooms and state-of-th
               </View>
               
               <Text style={styles.modalNote}>
-                A dedicated concierge will contact you within 15 minutes to finalize your exclusive itinerary.
+                A dedicated agent will contact you within 15 minutes to finalize your tour.
               </Text>
               
               <TouchableOpacity 

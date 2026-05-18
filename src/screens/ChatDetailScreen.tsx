@@ -203,7 +203,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           </View>
           <View style={{ flex: 1, marginRight: 10 }}>
             <Text style={styles.headerName} numberOfLines={1}>{otherUser.full_name}</Text>
-            <Text style={styles.headerStatus}>Concierge • Online</Text>
+            <Text style={styles.headerStatus}>Agent • Online</Text>
           </View>
         </View>
 
