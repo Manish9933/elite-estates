@@ -32,10 +32,13 @@ export default function SavedScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isFocused = useIsFocused();
+  const hasLoadedOnce = React.useRef(false);
 
-  const fetchFavorites = useCallback(async () => {
+  const fetchFavorites = useCallback(async (forceShowLoading = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!hasLoadedOnce.current || forceShowLoading) {
+      setLoading(true);
+    }
     try {
       const { data, error } = await propertyApi.getFavorites(user.id);
       if (data) {
@@ -47,6 +50,7 @@ export default function SavedScreen({ navigation }: any) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      hasLoadedOnce.current = true;
     }
   }, [user]);
 
@@ -129,7 +133,7 @@ export default function SavedScreen({ navigation }: any) {
             >
               <TouchableOpacity 
                 style={styles.propertyCard}
-                onPress={() => navigation.navigate('PropertyDetails', { property: prop })}
+                onPress={() => navigation.navigate('PropertyDetails', { property: prop, isFavorite: true })}
               >
                 <ImageBackground source={{ uri: prop.images?.[0] || 'https://via.placeholder.com/400' }} style={styles.propertyImage} imageStyle={{ borderRadius: 28 }}>
                   {prop.status === 'sold' && (

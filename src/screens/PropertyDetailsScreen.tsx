@@ -12,7 +12,8 @@ import {
   Modal,
   Platform,
   TextInput,
-  Linking
+  Linking,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
@@ -46,19 +47,23 @@ const APP_URL = "https://elite-estates.com"; // Future hosting URL
 export default function PropertyDetailsScreen({ route, navigation }: any) {
   const { property } = route.params;
   const { user } = useAuth();
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(route.params.isFavorite !== undefined ? route.params.isFavorite : false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '' });
   const [offerAmount, setOfferAmount] = useState((property.price || '').toString());
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
   React.useEffect(() => {
-    if (user && property.id) {
+    if (route.params.isFavorite !== undefined) {
+      setIsFavorite(route.params.isFavorite);
+    } else if (user && property.id) {
       propertyApi.isFavorite(user.id, property.id).then(({ isFavorite }) => {
         setIsFavorite(isFavorite);
       });
     }
-  }, [user, property.id]);
+  }, [user, property.id, route.params.isFavorite]);
 
   const handleToggleFavorite = async () => {
     if (!user) {
@@ -124,6 +129,10 @@ This architectural masterpiece features ${property.bhk} Bedrooms and state-of-th
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(event) => {
+              const index = Math.round(event.nativeEvent.contentOffset.x / width);
+              setActiveIndex(index);
+            }}
             renderItem={({ item }) => (
               <Image source={{ uri: item }} style={styles.mainImage} />
             )}
@@ -160,7 +169,7 @@ This architectural masterpiece features ${property.bhk} Bedrooms and state-of-th
           </SafeAreaView>
           
           <View style={styles.imageCount}>
-            <Text style={styles.countText}>1 / {images.length}</Text>
+            <Text style={styles.countText}>{activeIndex + 1} / {images.length}</Text>
           </View>
         </View>
 
@@ -418,37 +427,49 @@ This architectural masterpiece features ${property.bhk} Bedrooms and state-of-th
               </Text>
               
               <TouchableOpacity 
-                style={styles.finalConfirmBtn}
+                style={[styles.finalConfirmBtn, bookingLoading && { opacity: 0.7 }]}
+                disabled={bookingLoading}
                 onPress={async () => {
-                  setShowBookingModal(false);
-                  
                   if (!user) {
+                     setShowBookingModal(false);
                      setTimeout(() => showLuxuryAlert('Authentication Required', 'Please sign in to make an offer/booking.'), 500);
                      return;
                   }
                   
-                  const { error } = await (supabase.from('bookings') as any).insert([{
-                     property_id: property.id,
-                     buyer_id: user.id,
-                     agent_id: property.agent_id || property.user_id,
-                     booking_date: selectedDate.toISOString(),
-                     status: 'pending',
-                     notes: JSON.stringify({ offer_amount: Number(offerAmount) || Number(property.price) })
-                  }]);
+                  setBookingLoading(true);
+                  try {
+                    const { error } = await (supabase.from('bookings') as any).insert([{
+                       property_id: property.id,
+                       buyer_id: user.id,
+                       agent_id: property.agent_id || property.user_id,
+                       booking_date: selectedDate.toISOString(),
+                       status: 'pending',
+                       notes: JSON.stringify({ offer_amount: Number(offerAmount) || Number(property.price) })
+                    }]);
 
-                  setTimeout(() => {
+                    setShowBookingModal(false);
                     if (error) {
                        console.error('Booking Insert Error:', error);
                        showLuxuryAlert('Request Failed', error.message || 'Could not process your request.');
                     } else {
                        showLuxuryAlert('Offer Submitted', 'Your offer has been submitted! The admin will review it shortly.');
                     }
-                  }, 500);
+                  } catch (e: any) {
+                    setShowBookingModal(false);
+                    showLuxuryAlert('Request Failed', e.message || 'Could not process your request.');
+                  } finally {
+                    setBookingLoading(false);
+                  }
                 }}
               >
                 <LinearGradient colors={GOLD_GRADIENT} style={styles.gradientBtn}>
-                  <Text style={styles.finalConfirmText}>Make Offer / Book</Text>
-                  <ArrowRight size={20} color="black" />
+                  {bookingLoading ? (
+                    <ActivityIndicator size="small" color="black" style={{ marginRight: 10 }} />
+                  ) : null}
+                  <Text style={styles.finalConfirmText}>
+                    {bookingLoading ? 'Processing...' : 'Make Offer / Book'}
+                  </Text>
+                  {!bookingLoading && <ArrowRight size={20} color="black" />}
                 </LinearGradient>
               </TouchableOpacity>
             </View>

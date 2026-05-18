@@ -141,7 +141,7 @@ export default function LoadingScreen() {
           animateTextTransition(next);
           return prev;
         });
-      }, 3500);
+      }, 1200);
     };
     stepInterval();
 
