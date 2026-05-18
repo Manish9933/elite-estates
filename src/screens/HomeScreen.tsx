@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -65,10 +65,13 @@ export default function HomeScreen({ navigation }: any) {
   const [lastDismissedNotif, setLastDismissedNotif] = useState<any>(null);
   const [showUndoBanner, setShowUndoBanner] = useState(false);
   const undoTimer = React.useRef<any>(null);
+  const hasLoadedOnce = React.useRef(false);
 
-  const fetchHomeData = useCallback(async () => {
+  const fetchHomeData = useCallback(async (forceShowLoading = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!hasLoadedOnce.current || forceShowLoading) {
+      setLoading(true);
+    }
     try {
       // Set solid luxury defaults first so screen renders instantly
       setGlobalStats({
@@ -180,6 +183,7 @@ export default function HomeScreen({ navigation }: any) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      hasLoadedOnce.current = true;
     }
   }, [user]);
 
@@ -259,6 +263,37 @@ export default function HomeScreen({ navigation }: any) {
   const userName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Member';
   const userImage = profile?.avatar_url || user?.user_metadata?.avatar_url || 'https://i.pravatar.cc/150?u=elite';
 
+  // Dynamic filtering for search queries - fully memoized to eliminate CPU lag and re-renders on typing/scrolling
+  // Must be placed above early return to strictly satisfy the Rules of Hooks (hook order consistency)!
+  const searchLower = search.toLowerCase();
+
+  const filteredTrending = useMemo(() => {
+    return trendingProperties.filter((p: any) => 
+      p.title.toLowerCase().includes(searchLower) || 
+      p.address.toLowerCase().includes(searchLower) ||
+      p.city.toLowerCase().includes(searchLower) ||
+      (p.property_type && p.property_type.toLowerCase().includes(searchLower))
+    );
+  }, [trendingProperties, searchLower]);
+
+  const filteredFeatured = useMemo(() => {
+    return featuredProperties.filter((p: any) => 
+      p.title.toLowerCase().includes(searchLower) || 
+      p.address.toLowerCase().includes(searchLower) ||
+      p.city.toLowerCase().includes(searchLower) ||
+      (p.property_type && p.property_type.toLowerCase().includes(searchLower))
+    );
+  }, [featuredProperties, searchLower]);
+
+  const filteredNearby = useMemo(() => {
+    return nearbyProperties.filter((p: any) => 
+      p.title.toLowerCase().includes(searchLower) || 
+      p.address.toLowerCase().includes(searchLower) ||
+      p.city.toLowerCase().includes(searchLower) ||
+      (p.property_type && p.property_type.toLowerCase().includes(searchLower))
+    );
+  }, [nearbyProperties, searchLower]);
+
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -296,28 +331,6 @@ export default function HomeScreen({ navigation }: any) {
       </SafeAreaView>
     );
   }
-
-  // Dynamic filtering for search queries
-  const filteredTrending = trendingProperties.filter((p: any) => 
-    p.title.toLowerCase().includes(search.toLowerCase()) || 
-    p.address.toLowerCase().includes(search.toLowerCase()) ||
-    p.city.toLowerCase().includes(search.toLowerCase()) ||
-    (p.property_type && p.property_type.toLowerCase().includes(search.toLowerCase()))
-  );
-
-  const filteredFeatured = featuredProperties.filter((p: any) => 
-    p.title.toLowerCase().includes(search.toLowerCase()) || 
-    p.address.toLowerCase().includes(search.toLowerCase()) ||
-    p.city.toLowerCase().includes(search.toLowerCase()) ||
-    (p.property_type && p.property_type.toLowerCase().includes(search.toLowerCase()))
-  );
-
-  const filteredNearby = nearbyProperties.filter((p: any) => 
-    p.title.toLowerCase().includes(search.toLowerCase()) || 
-    p.address.toLowerCase().includes(search.toLowerCase()) ||
-    p.city.toLowerCase().includes(search.toLowerCase()) ||
-    (p.property_type && p.property_type.toLowerCase().includes(search.toLowerCase()))
-  );
 
   const showNoResults = search !== '' && 
     filteredTrending.length === 0 && 
@@ -467,7 +480,7 @@ export default function HomeScreen({ navigation }: any) {
                 >
                   <TouchableOpacity
                     activeOpacity={0.9}
-                    onPress={() => navigation.navigate('PropertyDetails', { property: prop })}
+                    onPress={() => navigation.navigate('PropertyDetails', { property: prop, isFavorite: userFavorites.has(prop.id) })}
                     style={styles.trendingCard}
                   >
                     <ImageBackground
@@ -544,7 +557,7 @@ export default function HomeScreen({ navigation }: any) {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.propCard}
-                    onPress={() => navigation.navigate('PropertyDetails', { property: prop })}
+                    onPress={() => navigation.navigate('PropertyDetails', { property: prop, isFavorite: userFavorites.has(prop.id) })}
                   >
                     <ImageBackground source={{ uri: prop.images?.[0] || 'https://via.placeholder.com/400' }} style={styles.propImage} imageStyle={{ borderRadius: 28 }}>
                       <LinearGradient
@@ -655,7 +668,7 @@ export default function HomeScreen({ navigation }: any) {
                   <TouchableOpacity
                     style={styles.masterpieceCard}
                     activeOpacity={0.9}
-                    onPress={() => navigation.navigate('PropertyDetails', { property: prop })}
+                    onPress={() => navigation.navigate('PropertyDetails', { property: prop, isFavorite: userFavorites.has(prop.id) })}
                   >
                     <ImageBackground source={{ uri: prop.images?.[0] || 'https://via.placeholder.com/400' }} style={styles.masterpieceImage} imageStyle={{ borderRadius: 32 }}>
                       <LinearGradient

@@ -82,8 +82,12 @@ export default function ExploreScreen({ navigation, route }: any) {
     return () => clearTimeout(delayDebounceFn);
   }, [searchInput]);
 
-  const fetchProperties = useCallback(async () => {
-    setLoading(true);
+  const hasLoadedOnce = React.useRef(false);
+
+  const fetchProperties = useCallback(async (forceShowLoading = false) => {
+    if (!hasLoadedOnce.current || forceShowLoading) {
+      setLoading(true);
+    }
     try {
       const isTrending = selectedChip === 'Trending';
       
@@ -138,6 +142,7 @@ export default function ExploreScreen({ navigation, route }: any) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      hasLoadedOnce.current = true;
     }
   }, [searchQuery, selectedChip, user, minPrice, maxPrice, selectedBhk, selectedCity, onlyFeatured]);
 
@@ -174,7 +179,7 @@ export default function ExploreScreen({ navigation, route }: any) {
   const numColumns = width > 1200 ? 3 : width > 800 ? 2 : 1;
   const cardWidth = width > 800 ? (width - (isWeb ? 120 : 40) - (numColumns - 1) * 20) / numColumns : width - 40;
 
-  const renderPropertyItem = ({ item, index }: { item: any, index: number }) => {
+  const renderPropertyItem = useCallback(({ item, index }: { item: any, index: number }) => {
     const isSold = item.status === 'sold';
     return (
       <Animated.View 
@@ -184,7 +189,7 @@ export default function ExploreScreen({ navigation, route }: any) {
         <TouchableOpacity 
           style={styles.propertyCard}
           activeOpacity={0.9}
-          onPress={() => navigation.navigate('PropertyDetails', { property: item })}
+          onPress={() => navigation.navigate('PropertyDetails', { property: item, isFavorite: userFavorites.has(item.id) })}
         >
           <View style={styles.imageContainer}>
             <Image 
@@ -222,44 +227,44 @@ export default function ExploreScreen({ navigation, route }: any) {
               <View style={styles.typeTag}>
                 <Text style={styles.typeText}>{item.property_type?.toUpperCase()}</Text>
               </View>
-            <View style={styles.ratingBox}>
-              <Star color={GOLD} fill={GOLD} size={12} />
-              <Text style={styles.ratingText}>4.9</Text>
+              <View style={styles.ratingBox}>
+                <Star color={GOLD} fill={GOLD} size={12} />
+                <Text style={styles.ratingText}>4.9</Text>
+              </View>
+            </View>
+            
+            <Text style={styles.titleText} numberOfLines={1}>{item.title}</Text>
+            
+            <View style={styles.locationRow}>
+              <MapPin color={GOLD} size={16} />
+              <Text style={styles.locationText} numberOfLines={1}>{item.address}</Text>
+            </View>
+            
+            <View style={styles.luxurySpecs}>
+              <View style={styles.specItem}>
+                <View style={styles.specIconBg}>
+                  <Bed color={GOLD} size={16} />
+                </View>
+                <Text style={styles.specText}>{item.bhk || 0} Beds</Text>
+              </View>
+              <View style={styles.specItem}>
+                <View style={styles.specIconBg}>
+                  <Maximize2 color={GOLD} size={16} />
+                </View>
+                <Text style={styles.specText}>{item.area_sqft || '0'} Sqft</Text>
+              </View>
+              <View style={styles.specItem}>
+                <View style={styles.specIconBg}>
+                  <Home color={GOLD} size={16} />
+                </View>
+                <Text style={styles.specText}>{item.bhk > 3 ? 'Elite' : 'Boutique'}</Text>
+              </View>
             </View>
           </View>
-          
-          <Text style={styles.titleText} numberOfLines={1}>{item.title}</Text>
-          
-          <View style={styles.locationRow}>
-            <MapPin color={GOLD} size={16} />
-            <Text style={styles.locationText} numberOfLines={1}>{item.address}</Text>
-          </View>
-          
-          <View style={styles.luxurySpecs}>
-            <View style={styles.specItem}>
-              <View style={styles.specIconBg}>
-                <Bed color={GOLD} size={16} />
-              </View>
-              <Text style={styles.specText}>{item.bhk || 0} Beds</Text>
-            </View>
-            <View style={styles.specItem}>
-              <View style={styles.specIconBg}>
-                <Maximize2 color={GOLD} size={16} />
-              </View>
-              <Text style={styles.specText}>{item.area_sqft || '0'} Sqft</Text>
-            </View>
-            <View style={styles.specItem}>
-              <View style={styles.specIconBg}>
-                <Home color={GOLD} size={16} />
-              </View>
-              <Text style={styles.specText}>{item.bhk > 3 ? 'Elite' : 'Boutique'}</Text>
-            </View>
-          </View>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  }, [cardWidth, userFavorites]);
 
   return (
     <View style={styles.container}>
@@ -483,11 +488,11 @@ export default function ExploreScreen({ navigation, route }: any) {
                 >
                   <Text style={styles.resetBtnText}>Clear All</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
+                 <TouchableOpacity
                   style={styles.applyBtn}
                   onPress={() => {
                     setShowFilterModal(false);
-                    fetchProperties();
+                    fetchProperties(true);
                   }}
                 >
                   <LinearGradient colors={GOLD_GRADIENT} style={styles.applyBtnGradient}>

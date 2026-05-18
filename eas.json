@@ -10,6 +10,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://dbblkomgmcvenzjmuwit.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable__gF8dyWKRv8S8X8-LbEdCQ_sZQB2RhN"
@@ -17,6 +18,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "channel": "production",
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://dbblkomgmcvenzjmuwit.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable__gF8dyWKRv8S8X8-LbEdCQ_sZQB2RhN"

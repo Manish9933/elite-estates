@@ -44,7 +44,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('Error initializing auth:', error);
       } finally {
         const elapsedTime = Date.now() - startTime;
-        const minimumDelay = 3000; // Enforce a 3-second display for the luxury loading experience
+        const minimumDelay = 400; // Snappy entry transition delay
         const remainingTime = Math.max(0, minimumDelay - elapsedTime);
 
         setTimeout(() => {

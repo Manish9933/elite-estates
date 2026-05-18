@@ -32,14 +32,17 @@ export default function ChatListScreen({ navigation }: any) {
   const [optionsVisible, setOptionsVisible] = useState(false);
   const [confirmClearVisible, setConfirmClearVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '' });
+  const hasLoadedOnce = React.useRef(false);
 
   const showLuxuryAlert = (title: string, message: string) => {
     setAlertConfig({ visible: true, title, message });
   };
 
-  const fetchChats = useCallback(async () => {
+  const fetchChats = useCallback(async (forceShowLoading = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!hasLoadedOnce.current || forceShowLoading) {
+      setLoading(true);
+    }
     try {
       const { data, error } = await messageApi.getChatList(user.id);
       if (data) {
@@ -73,6 +76,7 @@ export default function ChatListScreen({ navigation }: any) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      hasLoadedOnce.current = true;
     }
   }, [user]);
 

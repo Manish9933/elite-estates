@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, ViewStyle, DimensionValue, Dimensions, Platform } from 'react-native';
+import { View, StyleSheet, ViewStyle, DimensionValue, Dimensions, Platform, StyleProp } from 'react-native';
 import Animated, { 
   useAnimatedStyle, 
   withRepeat, 
@@ -17,7 +17,7 @@ interface SkeletonProps {
   width?: DimensionValue;
   height?: DimensionValue;
   borderRadius?: number;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const Skeleton = ({ width, height, borderRadius = 12, style }: SkeletonProps) => {
@@ -59,7 +59,7 @@ export const Skeleton = ({ width, height, borderRadius = 12, style }: SkeletonPr
         { width, height, borderRadius }, 
         style,
         animatedStyle
-      ]} 
+      ] as any} 
     />
   );
 };
@@ -91,7 +91,7 @@ export const ShimmerSkeleton = ({ width, height, borderRadius = 12, style }: Ske
       isCard && styles.skeletonCard,
       { width, height, borderRadius }, 
       style
-    ]}>
+    ] as any}>
       <Animated.View style={[StyleSheet.absoluteFill, animatedStyle]}>
         <LinearGradient
           colors={[

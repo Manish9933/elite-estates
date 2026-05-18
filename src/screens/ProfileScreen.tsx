@@ -157,7 +157,7 @@ export default function ProfileScreen({ navigation }: any) {
       
       await fetchData(true);
       setActiveModal(null);
-      showLuxuryAlert('Identity Synchronized', 'Your presence has been successfully updated across the Elite network.');
+      showLuxuryAlert('Profile Updated', 'Your profile changes have been successfully saved.');
     } catch (error: any) {
       showLuxuryAlert('Error', error.message, 'error');
     } finally {
@@ -226,7 +226,7 @@ export default function ProfileScreen({ navigation }: any) {
       await profileApi.updateProfile(user.id, { avatar_url: publicUrl });
       await fetchData(true);
       
-      showLuxuryAlert('Identity Synchronized', 'Your executive photo has been uploaded and secured.');
+      showLuxuryAlert('Photo Uploaded', 'Your profile picture has been successfully uploaded.');
     } catch (error: any) {
       console.error("[Profile] Upload Process Error:", error);
       showLuxuryAlert('Storage Error', error.message, 'error');
@@ -311,7 +311,7 @@ export default function ProfileScreen({ navigation }: any) {
               <View style={styles.statDivider} />
               <TouchableOpacity 
                 style={styles.statItem}
-                onPress={() => showLuxuryAlert('Concierge Update', 'You have ' + stats.viewings + ' private viewings scheduled for this month.')}
+                onPress={() => showLuxuryAlert('Booking Update', 'You have ' + stats.viewings + ' private tours scheduled for this month.')}
               >
                 <Text style={styles.statValue}>{stats.viewings}</Text>
                 <Text style={styles.statLabel}>Viewings</Text>
@@ -400,14 +400,14 @@ export default function ProfileScreen({ navigation }: any) {
             <LogOut size={20} color="#EF4444" />
             <Text style={styles.logoutText}>Secure Logout</Text>
           </TouchableOpacity>
-          <Text style={styles.versionText}>Elite Estates v1.0.4 Premium • Concierge Edition</Text>
+          <Text style={styles.versionText}>Elite Estates v1.0.4 Premium • Prime Edition</Text>
         </View>
       </ScrollView>
       )}
 
       {/* Production Modals Suite */}
       
-      {/* 1. Identity Manager */}
+      {/* 1. Profile Editor */}
       <Modal visible={activeModal === 'identity'} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
         <View style={styles.editOverlay}>
           <View style={[styles.editContainer, { height: '90%' }]}>
@@ -417,39 +417,39 @@ export default function ProfileScreen({ navigation }: any) {
                   <ChevronLeft size={24} color="white" />
                 </TouchableOpacity>
                 <View>
-                  <Text style={styles.editTitle}>Executive Dossier</Text>
-                  <Text style={styles.modalSub}>Manage your global identity</Text>
+                  <Text style={styles.editTitle}>Edit Profile</Text>
+                  <Text style={styles.modalSub}>Update your personal details</Text>
                 </View>
               </View>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.dossierSection}>
-                <Text style={styles.inputLabel}>Professional Identity</Text>
+                <Text style={styles.inputLabel}>Full Name</Text>
                 <TextInput style={styles.textInput} value={editedName} onChangeText={setEditedName} placeholder="Full Name" placeholderTextColor="rgba(255,255,255,0.3)" />
               </View>
               <View style={styles.dossierSection}>
-                <Text style={styles.inputLabel}>Executive Title</Text>
-                <TextInput style={styles.textInput} value={editedTitle} onChangeText={setEditedTitle} placeholder="e.g. Lead Investor" placeholderTextColor="rgba(255,255,255,0.3)" />
+                <Text style={styles.inputLabel}>Your Title / Role</Text>
+                <TextInput style={styles.textInput} value={editedTitle} onChangeText={setEditedTitle} placeholder="e.g. Home Buyer / Investor" placeholderTextColor="rgba(255,255,255,0.3)" />
               </View>
               <View style={styles.dossierSection}>
-                <Text style={styles.inputLabel}>Executive Visuals</Text>
+                <Text style={styles.inputLabel}>Profile Photo</Text>
                 <TouchableOpacity style={styles.uploadBtn} onPress={pickImage} disabled={isSaving}>
                   <Image source={{ uri: editedAvatar || userImage }} style={styles.uploadPreview} />
                   <View style={styles.uploadInfo}>
-                    <Text style={styles.uploadText}>{isSaving ? 'Synchronizing...' : 'Upload Executive Photo'}</Text>
-                    <Text style={styles.uploadSub}>Gallery access active</Text>
+                    <Text style={styles.uploadText}>{isSaving ? 'Saving...' : 'Upload Profile Photo'}</Text>
+                    <Text style={styles.uploadSub}>Select from your gallery</Text>
                   </View>
                   <ChevronRight size={18} color={Theme.colors.gold} />
                 </TouchableOpacity>
               </View>
               <View style={styles.dossierSection}>
-                <Text style={styles.inputLabel}>Secure Contact (Phone)</Text>
+                <Text style={styles.inputLabel}>Phone Number</Text>
                 <TextInput style={styles.textInput} value={editedPhone} onChangeText={setEditedPhone} placeholder="Phone Number" placeholderTextColor="rgba(255,255,255,0.3)" />
               </View>
               <View style={styles.dossierSection}>
-                <Text style={styles.inputLabel}>Preferred Contact Protocol</Text>
+                <Text style={styles.inputLabel}>Preferred Contact Method</Text>
                 <View style={styles.contactRow}>
-                  {['Secure Call', 'WhatsApp', 'Email'].map(method => (
+                  {['Phone Call', 'WhatsApp', 'Email'].map(method => (
                     <TouchableOpacity 
                       key={method} 
                       style={[styles.contactChip, editedContact === method && styles.contactChipActive]}
@@ -461,23 +461,23 @@ export default function ProfileScreen({ navigation }: any) {
                 </View>
               </View>
               <View style={styles.dossierSection}>
-                <Text style={styles.inputLabel}>Executive Summary (Bio)</Text>
+                <Text style={styles.inputLabel}>About You (Bio)</Text>
                 <TextInput 
                   style={[styles.textInput, { height: 100, paddingTop: 15 }]} 
                   value={editedBio} 
                   onChangeText={setEditedBio} 
-                  placeholder="Tell us about your architectural interests..." 
+                  placeholder="Tell us about your interests in homes..." 
                   placeholderTextColor="rgba(255,255,255,0.3)"
                   multiline
                 />
               </View>
               <View style={styles.dossierSection}>
-                <Text style={styles.inputLabel}>Primary Residency (Location)</Text>
+                <Text style={styles.inputLabel}>Residency (City, Country)</Text>
                 <TextInput style={styles.textInput} value={editedLocation} onChangeText={setEditedLocation} placeholder="City, Country" placeholderTextColor="rgba(255,255,255,0.3)" />
               </View>
               <TouchableOpacity style={styles.saveButton} onPress={handleUpdateProfile} disabled={isSaving}>
                 <LinearGradient colors={GOLD_GRADIENT} style={styles.saveBtnGradient}>
-                  {isSaving ? <ActivityIndicator color="black" /> : <Text style={styles.saveBtnText}>Synchronize Identity</Text>}
+                  {isSaving ? <ActivityIndicator color="black" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
                 </LinearGradient>
               </TouchableOpacity>
             </ScrollView>
@@ -652,15 +652,13 @@ export default function ProfileScreen({ navigation }: any) {
                   style={styles.confirmLogoutBtn}
                   onPress={async () => {
                     setIsLoggingOut(true);
-                    setTimeout(async () => {
-                      try {
-                        await signOut();
-                      } catch (error: any) {
-                        setIsLoggingOut(false);
-                        setShowLogoutModal(false);
-                        showLuxuryAlert('Error', error.message, 'error');
-                      }
-                    }, 1800);
+                    try {
+                      await signOut();
+                    } catch (error: any) {
+                      setIsLoggingOut(false);
+                      setShowLogoutModal(false);
+                      showLuxuryAlert('Error', error.message, 'error');
+                    }
                   }}
                 >
                   <LinearGradient 

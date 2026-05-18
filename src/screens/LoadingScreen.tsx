@@ -25,10 +25,10 @@ const GOLD_DARK = '#B88A44';
 const BACKGROUND_VILLA_IMAGE = 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=1200';
 
 const LOADING_STEPS = [
-  { text: 'Curating bespoke estates...', icon: Building2 },
-  { text: 'Initializing secure concierge gateway...', icon: ShieldCheck },
-  { text: 'Mapping premium locales...', icon: Compass },
-  { text: 'Unveiling gold-tier listings...', icon: Sparkles },
+  { text: 'Finding beautiful homes...', icon: Building2 },
+  { text: 'Setting up secure access...', icon: ShieldCheck },
+  { text: 'Mapping premium areas...', icon: Compass },
+  { text: 'Unlocking prime listings...', icon: Sparkles },
 ];
 
 export default function LoadingScreen() {
@@ -43,6 +43,15 @@ export default function LoadingScreen() {
   const textTranslateY = useRef(new Animated.Value(8)).current;
   
   const rotation = useRef(new Animated.Value(0)).current;
+  
+  // Premium background zoom and metallic card gloss shine animations
+  const bgScale = useRef(new Animated.Value(1)).current;
+  const glossTranslate = useRef(new Animated.Value(-240)).current;
+
+  // Premium floating dust/star particles animation Y offsets
+  const particle1Y = useRef(new Animated.Value(0)).current;
+  const particle2Y = useRef(new Animated.Value(0)).current;
+  const particle3Y = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // 1. Central Card Entrance Animation
@@ -141,7 +150,7 @@ export default function LoadingScreen() {
           animateTextTransition(next);
           return prev;
         });
-      }, 3500);
+      }, 1200);
     };
     stepInterval();
 
@@ -155,6 +164,59 @@ export default function LoadingScreen() {
       })
     ).start();
 
+    // 5. Ken Burns background image breathing scale zoom
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bgScale, {
+          toValue: 1.08,
+          duration: 14000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bgScale, {
+          toValue: 1.0,
+          duration: 14000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        })
+      ])
+    ).start();
+
+    // 6. Luxury Diagonal Gloss Shine loop (credit-card dynamic reflection style)
+    const runGlossShine = () => {
+      glossTranslate.setValue(-240);
+      Animated.sequence([
+        Animated.delay(1200),
+        Animated.timing(glossTranslate, {
+          toValue: 240,
+          duration: 1700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.delay(3500),
+      ]).start(() => runGlossShine());
+    };
+    runGlossShine();
+
+    // 7. Golden particles rising float animation loops
+    const runParticle = (anim: Animated.Value, toVal: number, duration: number, delay: number) => {
+      anim.setValue(0);
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, {
+            toValue: toVal,
+            duration: duration,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          })
+        ])
+      ).start();
+    };
+    runParticle(particle1Y, -90, 5500, 0);
+    runParticle(particle2Y, -110, 6800, 1800);
+    runParticle(particle3Y, -80, 4800, 3200);
+
     return () => {
       clearInterval(stepTimer);
     };
@@ -165,24 +227,54 @@ export default function LoadingScreen() {
     outputRange: ['0deg', '360deg'],
   });
 
+  // Particle style interpolation (scale & opacity transition)
+  const p1Style = {
+    transform: [
+      { translateY: particle1Y },
+      { scale: particle1Y.interpolate({ inputRange: [-90, -45, 0], outputRange: [0.3, 1, 0.3] }) }
+    ],
+    opacity: particle1Y.interpolate({ inputRange: [-90, -45, 0], outputRange: [0, 0.7, 0] })
+  };
+  const p2Style = {
+    transform: [
+      { translateY: particle2Y },
+      { scale: particle2Y.interpolate({ inputRange: [-110, -55, 0], outputRange: [0.3, 1, 0.3] }) }
+    ],
+    opacity: particle2Y.interpolate({ inputRange: [-110, -55, 0], outputRange: [0, 0.7, 0] })
+  };
+  const p3Style = {
+    transform: [
+      { translateY: particle3Y },
+      { scale: particle3Y.interpolate({ inputRange: [-80, -40, 0], outputRange: [0.3, 1, 0.3] }) }
+    ],
+    opacity: particle3Y.interpolate({ inputRange: [-80, -40, 0], outputRange: [0, 0.7, 0] })
+  };
+
   const ActiveIcon = LOADING_STEPS[currentStep].icon;
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       
-      {/* 1. Breathtaking Villa Background Image */}
-      <ImageBackground
-        source={{ uri: BACKGROUND_VILLA_IMAGE }}
-        style={StyleSheet.absoluteFill}
-        resizeMode="cover"
-      >
-        {/* 2. Premium Semi-Transparent Dark Vignette Overlay */}
-        <LinearGradient
-          colors={['rgba(5, 5, 5, 0.4)', 'rgba(5, 5, 5, 0.65)', 'rgba(5, 5, 5, 0.85)']}
+      {/* 1. Ken Burns Animated Breathtaking Villa Background */}
+      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale: bgScale }] }]}>
+        <ImageBackground
+          source={{ uri: BACKGROUND_VILLA_IMAGE }}
           style={StyleSheet.absoluteFill}
-        />
-      </ImageBackground>
+          resizeMode="cover"
+        >
+          {/* 2. Premium Semi-Transparent Dark Vignette Overlay */}
+          <LinearGradient
+            colors={['rgba(5, 5, 5, 0.35)', 'rgba(5, 5, 5, 0.65)', 'rgba(5, 5, 5, 0.88)']}
+            style={StyleSheet.absoluteFill}
+          />
+        </ImageBackground>
+      </Animated.View>
+
+      {/* Floating Premium Golden Particles */}
+      <Animated.View style={[styles.goldParticle, { top: height * 0.34, left: width * 0.22 }, p1Style]} />
+      <Animated.View style={[styles.goldParticle, { top: height * 0.42, right: width * 0.18 }, p2Style]} />
+      <Animated.View style={[styles.goldParticle, { top: height * 0.28, left: width * 0.72 }, p3Style]} />
 
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.contentContainer}>
@@ -200,8 +292,27 @@ export default function LoadingScreen() {
             {/* 100% crash-proof luxury glassmorphic card clipped inside outer shadow */}
             <View style={styles.cardClippingWrapper}>
               <View style={styles.blurCard}>
+                
+                {/* Diagonal Luxury Gloss Shine effect */}
+                <Animated.View style={[
+                  styles.glossShine,
+                  {
+                    transform: [
+                      { translateX: glossTranslate },
+                      { skewX: '-30deg' }
+                    ]
+                  }
+                ]}>
+                  <LinearGradient
+                    colors={['transparent', 'rgba(255, 255, 255, 0.0)', 'rgba(255, 242, 163, 0.15)', 'rgba(255, 242, 163, 0.35)', 'rgba(255, 242, 163, 0.15)', 'transparent']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                </Animated.View>
+
                 <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.12)', 'rgba(255, 255, 255, 0.03)']}
+                  colors={['rgba(255, 255, 255, 0.14)', 'rgba(255, 255, 255, 0.04)']}
                   style={styles.cardGradientBorder}
                 >
                   
@@ -276,7 +387,7 @@ export default function LoadingScreen() {
             <Text style={styles.brandTitle}>
               ELITE <Text style={styles.brandTitleGold}>ESTATES</Text>
             </Text>
-            <Text style={styles.brandSubtitle}>CONCIERGE PORTFOLIO</Text>
+            <Text style={styles.brandSubtitle}>PRIME PORTFOLIO</Text>
           </Animated.View>
 
         </View>
@@ -325,6 +436,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#050505',
+  },
+  goldParticle: {
+    position: 'absolute',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFF2A3',
+    shadowColor: GOLD,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  glossShine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 100,
+    zIndex: 10,
   },
   safeArea: {
     flex: 1,

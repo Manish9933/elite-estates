@@ -166,7 +166,7 @@ const TabNavigator = () => {
   // Dynamic bottom inset to clear Android system navigation keys or gesture bars
   const bottomInset = insets.bottom;
   // Dynamic tab height: taller on safe-area gesture devices, standard & tight on system key devices
-  const tabHeight = Platform.OS === 'ios' ? (60 + insets.bottom) : (bottomInset > 0 ? (70 + bottomInset) : 68);
+  const tabHeight = Platform.OS === 'ios' ? (64 + insets.bottom) : (bottomInset > 0 ? (72 + bottomInset) : 72);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#050505' }}>
@@ -179,8 +179,8 @@ const TabNavigator = () => {
             borderTopWidth: 1,
             borderTopColor: 'rgba(255,255,255,0.08)',
             height: tabHeight,
-            paddingBottom: bottomInset > 0 ? (bottomInset + 4) : 4,
-            paddingTop: bottomInset > 0 ? 10 : 12,
+            paddingBottom: bottomInset > 0 ? (bottomInset + 6) : 8,
+            paddingTop: 10,
             display: isWeb && isLargeScreen ? 'none' : 'flex',
             elevation: 8,
             shadowColor: '#000',
@@ -194,10 +194,10 @@ const TabNavigator = () => {
           tabBarLabelStyle: {
             fontSize: 12,
             fontWeight: '700',
-            marginBottom: Platform.OS === 'android' ? (bottomInset > 0 ? 6 : 2) : 2,
+            marginBottom: Platform.OS === 'android' ? (bottomInset > 0 ? 6 : 4) : 4,
           },
           tabBarIcon: ({ color }) => {
-            const size = 27; // Increased icon size from 24 to 27 for better visibility
+            const size = 26; // Perfectly sized icon for the layout
             if (route.name === 'Home') return <Home color={color} size={size} strokeWidth={2} />;
             if (route.name === 'Explore') return <Search color={color} size={size} strokeWidth={2} />;
             if (route.name === 'Saved') return <Heart color={color} size={size} strokeWidth={2} />;
@@ -213,7 +213,7 @@ const TabNavigator = () => {
         <Tab.Screen name="Inbox" component={ChatStack} />
         <Tab.Screen name="Profile" component={ProfileScreen} />
       </Tab.Navigator>
-      {!isLargeScreen && <PulseLine bottom={bottomInset > 0 ? (bottomInset + 6) : 6} />}
+      {!isLargeScreen && <PulseLine bottom={tabHeight - 2} />}
     </View>
   );
 };
