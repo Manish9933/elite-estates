@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   ChevronLeft, 
+  ChevronRight,
   Heart, 
   Share2, 
   MapPin, 
@@ -54,6 +55,48 @@ export default function PropertyDetailsScreen({ route, navigation }: any) {
   const [offerAmount, setOfferAmount] = useState((property.price || '').toString());
   const [activeIndex, setActiveIndex] = useState(0);
   const [bookingLoading, setBookingLoading] = useState(false);
+
+  const flatListRef = React.useRef<FlatList>(null);
+
+  const handlePrevImage = () => {
+    if (activeIndex > 0) {
+      const nextIndex = activeIndex - 1;
+      setActiveIndex(nextIndex);
+      flatListRef.current?.scrollToOffset({ offset: nextIndex * width, animated: true });
+    }
+  };
+
+  const handleNextImage = () => {
+    if (activeIndex < images.length - 1) {
+      const nextIndex = activeIndex + 1;
+      setActiveIndex(nextIndex);
+      flatListRef.current?.scrollToOffset({ offset: nextIndex * width, animated: true });
+    }
+  };
+
+  // Mouse Drag Swiping for Desktop Web Carousel
+  const isDragging = React.useRef(false);
+  const startDragX = React.useRef(0);
+
+  const handleMouseDown = (e: any) => {
+    if (Platform.OS !== 'web') return;
+    isDragging.current = true;
+    startDragX.current = e.nativeEvent.clientX || e.nativeEvent.pageX || e.clientX || e.pageX || 0;
+  };
+
+  const handleMouseUpOrLeave = (e: any) => {
+    if (!isDragging.current || Platform.OS !== 'web') return;
+    isDragging.current = false;
+    const endX = e.nativeEvent.clientX || e.nativeEvent.pageX || e.clientX || e.pageX || 0;
+    const diff = endX - startDragX.current;
+
+    // Threshold to trigger slide: 50px
+    if (diff < -50) {
+      handleNextImage();
+    } else if (diff > 50) {
+      handlePrevImage();
+    }
+  };
 
   React.useEffect(() => {
     if (route.params.isFavorite !== undefined) {
@@ -123,8 +166,16 @@ This architectural masterpiece features ${property.bhk} Bedrooms and state-of-th
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} bounces={false} contentContainerStyle={{ paddingBottom: 160 }}>
         {/* Cinematic Gallery */}
-        <View style={styles.imageContainer}>
+        <View 
+          style={styles.imageContainer}
+          {...(Platform.OS === 'web' ? {
+            onMouseDown: handleMouseDown,
+            onMouseUp: handleMouseUpOrLeave,
+            onMouseLeave: handleMouseUpOrLeave,
+          } : {})}
+        >
           <FlatList
+            ref={flatListRef}
             data={images}
             horizontal
             pagingEnabled
@@ -143,6 +194,44 @@ This architectural masterpiece features ${property.bhk} Bedrooms and state-of-th
             colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.8)']}
             style={StyleSheet.absoluteFill}
           />
+
+          {/* Web Custom Carousel Navigation Arrows */}
+          {Platform.OS === 'web' && images.length > 1 && (
+            <>
+              {activeIndex > 0 && (
+                <TouchableOpacity 
+                  style={[styles.webArrowBtn, { left: 20 }]} 
+                  onPress={(e: any) => {
+                    e.stopPropagation();
+                    handlePrevImage();
+                  }}
+                  activeOpacity={0.8}
+                  {...({
+                    onMouseDown: (e: any) => e.stopPropagation(),
+                    onMouseUp: (e: any) => e.stopPropagation(),
+                  } as any)}
+                >
+                  <ChevronLeft color={GOLD} size={24} />
+                </TouchableOpacity>
+              )}
+              {activeIndex < images.length - 1 && (
+                <TouchableOpacity 
+                  style={[styles.webArrowBtn, { right: 20 }]} 
+                  onPress={(e: any) => {
+                    e.stopPropagation();
+                    handleNextImage();
+                  }}
+                  activeOpacity={0.8}
+                  {...({
+                    onMouseDown: (e: any) => e.stopPropagation(),
+                    onMouseUp: (e: any) => e.stopPropagation(),
+                  } as any)}
+                >
+                  <ChevronRight color={GOLD} size={24} />
+                </TouchableOpacity>
+              )}
+            </>
+          )}
 
           <SafeAreaView style={styles.imageHeader} edges={['top']}>
             <TouchableOpacity 
@@ -510,6 +599,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#050505',
+    ...Platform.select({
+      web: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        overflow: 'hidden',
+      }
+    })
   },
   imageContainer: {
     width: width,
@@ -517,7 +616,7 @@ const styles = StyleSheet.create({
   },
   mainImage: {
     width: width,
-    height: '100%',
+    height: 480,
   },
   imageHeader: {
     position: 'absolute',
@@ -1094,5 +1193,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginTop: 10,
+  },
+  webArrowBtn: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -24,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+    shadowColor: GOLD,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
   }
 });

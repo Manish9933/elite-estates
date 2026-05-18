@@ -5,20 +5,28 @@ import { StatusBar } from 'expo-status-bar';
 import { Home, Search, Heart, MessageSquare, User } from 'lucide-react-native';
 import HomeScreen from './src/screens/HomeScreen';
 import ExploreScreen from './src/screens/ExploreScreen';
-import MapScreen from './src/screens/MapScreen';
 import PropertyDetailsScreen from './src/screens/PropertyDetailsScreen';
 import ChatListScreen from './src/screens/ChatListScreen';
 import ChatDetailScreen from './src/screens/ChatDetailScreen';
 import AuthScreen from './src/screens/AuthScreen';
 import SavedScreen from './src/screens/SavedScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
-import LoadingScreen from './src/screens/LoadingScreen';
 import AdminDashboard from './admin/DashboardScreen';
 import { Theme } from './src/styles/theme';
-import { View, Text, Platform, TouchableOpacity, Dimensions, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, Platform, TouchableOpacity, Dimensions, ActivityIndicator, Animated, ScrollView } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const MapScreen = Platform.select({
+  web: require('./src/screens/web/MapScreen').default,
+  default: require('./src/screens/MapScreen').default,
+});
+
+const LoadingScreen = Platform.select({
+  web: require('./src/screens/web/LoadingScreen').default,
+  default: require('./src/screens/LoadingScreen').default,
+});
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -243,6 +251,48 @@ const MainStack = () => {
 import * as NavigationBar from 'expo-navigation-bar';
 import * as SystemUI from 'expo-system-ui';
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: Error | null }> {
+  state: { hasError: boolean, error: Error | null } = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ color: '#D4AF37', fontSize: 24, fontWeight: 'bold', marginBottom: 20 }}>Something went wrong</Text>
+          <ScrollView style={{ backgroundColor: '#111', padding: 15, borderRadius: 10, width: '100%', maxHeight: 400 }}>
+            <Text style={{ color: '#ff5555', fontFamily: 'monospace', fontSize: 14 }}>
+              {this.state.error?.toString()}
+            </Text>
+            <Text style={{ color: '#aaa', fontFamily: 'monospace', fontSize: 12, marginTop: 10 }}>
+              {this.state.error?.stack}
+            </Text>
+          </ScrollView>
+          <TouchableOpacity 
+            onPress={() => {
+              if (Platform.OS === 'web') {
+                window.location.reload();
+              }
+            }}
+            style={{ marginTop: 20, backgroundColor: '#D4AF37', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 5 }}
+          >
+            <Text style={{ color: '#000', fontWeight: 'bold' }}>Reload App</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export default function App() {
   React.useEffect(() => {
     if (Platform.OS === 'android') {
@@ -252,11 +302,15 @@ export default function App() {
   }, []);
 
   return (
-    <AuthProvider>
-      <NavigationContainer>
-        <StatusBar style="light" />
-        <MainStack />
-      </NavigationContainer>
-    </AuthProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <NavigationContainer>
+            <StatusBar style="light" />
+            <MainStack />
+          </NavigationContainer>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
