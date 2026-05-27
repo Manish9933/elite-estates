@@ -1,5 +1,5 @@
 -- Enable PostGIS for location data
-create extension if not exists postgis;
+create extension if not exists postgis schema extensions;
 
 -- Create Roles Enum
 create type user_role as enum ('buyer', 'agent', 'admin');
@@ -107,7 +107,10 @@ begin
   values (new.id, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url');
   return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
+
+-- Revoke execute permissions on the trigger function from the public, anon, and authenticated roles to prevent API invocation
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
 
 -- Triggers
 create trigger on_auth_user_created

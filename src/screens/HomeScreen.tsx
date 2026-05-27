@@ -99,7 +99,7 @@ export default function HomeScreen({ navigation }: any) {
       if (profileRes.data) setProfile(profileRes.data);
 
       if (favoritesRes.data) {
-        const favIds = new Set(favoritesRes.data.map((f: any) => f.property.id));
+        const favIds = new Set(favoritesRes.data.map((f: any) => String(f.property.id)) as string[]);
         setUserFavorites(favIds);
       }
 
